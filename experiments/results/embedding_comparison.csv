@@ -1,0 +1,6 @@
+model,precision_at_10,encode_time_s,embedding_dim,model_params_M
+all-mpnet-base-v2,0.3693,24.22,768,109.5
+all-MiniLM-L6-v2,0.3194,2.95,384,22.7
+multi-qa-MiniLM-L6-cos-v1,0.307,5.86,384,22.7
+all-MiniLM-L12-v2,0.2995,1.49,384,33.4
+paraphrase-MiniLM-L6-v2,0.2945,0.47,384,22.7
