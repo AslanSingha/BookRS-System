@@ -1,0 +1,15 @@
+# Large binary files
+experiments/results/*.npy
+experiments/results/*.pkl
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Data files
+*.csv
+*.parquet
+*.db
+data/
