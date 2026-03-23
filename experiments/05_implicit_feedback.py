@@ -21,7 +21,7 @@ interactions = pd.read_parquet(DATA_DIR / "bookrs_ucsd_interactions.parquet")
 top_books = interactions["book_id"].value_counts().head(2000).index
 interactions = interactions[interactions["book_id"].isin(top_books)]
 user_counts = interactions["user_id"].value_counts()
-top_users = user_counts[user_counts >= 10].head(10000).index
+top_users = user_counts[user_counts >= 10].index
 interactions = interactions[interactions["user_id"].isin(top_users)].copy()
 print(f"Books: 2,000 | Users: {len(top_users):,} | Interactions: {len(interactions):,}")
 print(f"Reviewed: {interactions['is_reviewed'].sum():,} ({interactions['is_reviewed'].mean()*100:.1f}%)")
