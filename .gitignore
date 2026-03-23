@@ -13,3 +13,5 @@ __pycache__/
 *.parquet
 *.db
 data/
+experiments/results/**/*.pkl
+experiments/results/**/*.pkl.meta
