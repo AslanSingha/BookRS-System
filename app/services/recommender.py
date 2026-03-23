@@ -52,8 +52,8 @@ class BookRecommender:
             logger.info("Computing embeddings (first time, takes a few minutes)...")
             texts = (self.books_df["title"] + ". " + self.books_df["description"].fillna("")).tolist()
             self.embeddings = self.model.encode(
-                texts, batch_size=256, show_progress_bar=True,
-                normalize_embeddings=True
+                texts, batch_size=128, show_progress_bar=True,
+                normalize_embeddings=True, device="cuda"
             ).astype(np.float32)
             np.save(str(embeddings_path), self.embeddings)
             logger.info("Embeddings saved to cache!")
@@ -204,7 +204,7 @@ class BookRecommender:
     def search(self, query: str, n: int = 10) -> list[dict]:
         """Semantic search using SBERT embeddings."""
         query_emb = self.model.encode(
-            [query], normalize_embeddings=True
+            [query], normalize_embeddings=True, device="cuda"
         ).astype(np.float32)[0]
         scores = query_emb @ self.embeddings.T
         top_idxs = np.argsort(scores)[-n:][::-1]
