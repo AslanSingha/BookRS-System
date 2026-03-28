@@ -8,10 +8,46 @@ export const useUserStore = defineStore('user', () => {
   const ratedBooks = ref(new Map(JSON.parse(localStorage.getItem('bookrs_ratings') || '[]')))
   const isLoggedIn = ref(!!userId.value)
 
-  function login(id) {
+  async function login(id) {
     userId.value = id
     isLoggedIn.value = true
     localStorage.setItem('bookrs_user_id', id)
+    // Load history from DB
+    await loadHistoryFromDB(id)
+  }
+
+  async function loadHistoryFromDB(id) {
+    try {
+      const res = await api.get(`/actions/${id}`)
+      const actions = res.data
+
+      // Rebuild ratings and favorites from DB
+      const newRatings = new Map()
+      const newFavorites = new Set()
+
+      for (const action of actions) {
+        if (action.action_type === 'rating') {
+          // Keep the latest rating for each book
+          if (!newRatings.has(action.book_id) ||
+              new Date(action.created_at) > new Date(newRatings.get(action.book_id).created_at)) {
+            newRatings.set(action.book_id, action.value)
+          }
+        } else if (action.action_type === 'favorite') {
+          newFavorites.add(action.book_id)
+        }
+      }
+
+      ratedBooks.value = newRatings
+      favorites.value = newFavorites
+
+      // Sync to localStorage
+      localStorage.setItem('bookrs_ratings', JSON.stringify([...newRatings.entries()]))
+      localStorage.setItem('bookrs_favorites', JSON.stringify([...newFavorites]))
+
+      console.log(`Loaded ${newRatings.size} ratings, ${newFavorites.size} favorites from DB`)
+    } catch (e) {
+      console.error('Failed to load history from DB:', e)
+    }
   }
 
   function logout() {
@@ -58,8 +94,16 @@ export const useUserStore = defineStore('user', () => {
     await logAction(bookId, 'view', 1)
   }
 
+  // Auto-load history if already logged in
+  async function initializeSession() {
+    if (userId.value) {
+      await loadHistoryFromDB(userId.value)
+    }
+  }
+
   return {
     userId, isLoggedIn, favorites, ratedBooks,
-    login, logout, logAction, toggleFavorite, rateBook, logView
+    login, logout, logAction, toggleFavorite, rateBook, logView,
+    loadHistoryFromDB, initializeSession
   }
 })

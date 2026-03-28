@@ -31,6 +31,7 @@ class BookRecommender:
         self.user2idx     = {}
         self.book2idx     = {}
         self.idx2book     = {}
+        self.similar_cache = {}
         self.model        = None
         self.is_ready     = False
 
@@ -250,9 +251,44 @@ class BookRecommender:
         top_idxs = np.argsort(scores)[-n:][::-1]
         return self._idxs_to_books(top_idxs, scores, "content")
 
+    async def _precompute_similar(self, top_n: int = 50000, k: int = 10):
+        """Pre-compute similar books for top N most-rated books."""
+        import asyncio
+        logger.info(f"Pre-computing similar books for top {top_n:,} books...")
+        top_books = self.books_df.nlargest(top_n, "ratings_count")
+        count = 0
+        for _, row in top_books.iterrows():
+            book_id = row["book_id"]
+            if book_id not in self.book2idx:
+                continue
+            idx = self.book2idx[book_id]
+            scores = self.embeddings[idx] @ self.embeddings.T
+            scores[idx] = -1
+            top_idxs = np.argsort(scores)[-k:][::-1]
+            self.similar_cache[book_id] = [
+                self.idx2book[i] for i in top_idxs
+            ]
+            count += 1
+            if count % 10000 == 0:
+                logger.info(f"  Pre-computed {count:,}/{top_n:,} books...")
+                await asyncio.sleep(0)  # yield control
+        logger.info(f"Similar books pre-computed for {count:,} books!")
+
     def get_content_recommendations(self, book_id: str, n: int = 10) -> list[dict]:
         if book_id not in self.book2idx:
             return []
+        # Use cache if available (fast!)
+        if book_id in self.similar_cache:
+            cached_ids = self.similar_cache[book_id][:n]
+            results = []
+            for bid in cached_ids:
+                if bid in self.book2idx:
+                    idx = self.book2idx[bid]
+                    row = self.books_df[self.books_df["book_id"] == bid]
+                    if not row.empty:
+                        results.append(self._book_to_dict(row.iloc[0], 1.0, "content"))
+            return results
+        # Fallback: compute on-the-fly for uncached books
         idx = self.book2idx[book_id]
         scores = self.embeddings[idx] @ self.embeddings.T
         scores[idx] = -1
