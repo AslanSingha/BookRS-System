@@ -15,8 +15,10 @@ export const booksApi = {
 }
 
 export const recommendApi = {
-  getHybrid: (userId, n = 10) =>
-    api.get(`/recommendations/hybrid/${userId}`, { params: { n } }),
+  getHybrid: (userId, n = 10, ratedBooks = '') =>
+    api.get(`/recommendations/hybrid/${userId}`, {
+      params: { n, rated_books: ratedBooks || undefined }
+    }),
   getSimilar: (bookId, n = 10) =>
     api.get(`/recommendations/similar/${bookId}`, { params: { n } }),
   getPopular: (n = 10, genre = null) =>
@@ -28,6 +30,12 @@ export const recommendApi = {
 export const searchApi = {
   search: (query, n = 10) =>
     api.get('/search/', { params: { q: query, n } }),
+}
+
+export const actionsApi = {
+  logAction: (data) => api.post('/actions/', data),
+  getUserActions: (userId) => api.get(`/actions/${userId}`),
+  getUserFavorites: (userId) => api.get(`/actions/${userId}/favorites`),
 }
 
 export default api

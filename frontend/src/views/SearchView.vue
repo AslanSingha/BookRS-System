@@ -2,7 +2,6 @@
   <div>
     <h1 class="text-2xl font-bold mb-6">🔍 Search Books</h1>
 
-    <!-- Search bar -->
     <form @submit.prevent="handleSearch" class="mb-8">
       <div class="flex gap-3">
         <input
@@ -15,8 +14,7 @@
       </div>
     </form>
 
-    <!-- Results -->
-    <div v-if="query || store.searchResults.length > 0">
+    <div v-if="lastQuery">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-semibold text-gray-700">
           {{ store.searchResults.length }} results for "{{ lastQuery }}"
@@ -26,7 +24,6 @@
       <BookGrid :books="store.searchResults" :is-loading="store.isLoading" />
     </div>
 
-    <!-- Empty state -->
     <div v-else class="text-center py-16 text-gray-400">
       <p class="text-5xl mb-4">🔍</p>
       <p class="text-lg">Search for any book, author, or topic</p>
@@ -36,26 +33,39 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useBookStore } from '../stores/books'
 import BookGrid from '../components/BookGrid.vue'
 
 const store = useBookStore()
 const route = useRoute()
+const router = useRouter()
 const query = ref('')
 const lastQuery = ref('')
 
 async function handleSearch() {
   if (!query.value.trim()) return
   lastQuery.value = query.value
+  // Update URL so navbar search works
+  router.replace({ name: 'Search', query: { q: query.value } })
   await store.search(query.value)
 }
+
+// Watch for route query changes (from navbar search)
+watch(() => route.query.q, (newQ) => {
+  if (newQ && newQ !== lastQuery.value) {
+    query.value = newQ
+    lastQuery.value = newQ
+    store.search(newQ)
+  }
+}, { immediate: true })
 
 onMounted(() => {
   if (route.query.q) {
     query.value = route.query.q
-    handleSearch()
+    lastQuery.value = route.query.q
+    store.search(route.query.q)
   }
 })
 </script>

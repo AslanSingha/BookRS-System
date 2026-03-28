@@ -6,6 +6,7 @@ const routes = [
   { path: '/book/:id', name: 'BookDetail', component: () => import('../views/BookDetailView.vue') },
   { path: '/trending', name: 'Trending', component: () => import('../views/TrendingView.vue') },
   { path: '/popular', name: 'Popular', component: () => import('../views/PopularView.vue') },
+  { path: '/profile', name: 'Profile', component: () => import('../views/ProfileView.vue') },
 ]
 
 const router = createRouter({

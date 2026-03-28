@@ -2,6 +2,12 @@
 BookRS Recommender Service
 Combines ALS (collaborative filtering) + SBERT (content-based)
 Using all settings justified by experiments 1-5.
+
+Cold-start strategy (Option C):
+  0 ratings   → Popular/Trending
+  1-4 ratings → Content-based from rated books
+  5+ ratings  → Full Hybrid (ALS + Content)
+  UCSD user   → Full Hybrid (ALS + Content)
 """
 import numpy as np
 import pandas as pd
@@ -18,30 +24,27 @@ logger = logging.getLogger(__name__)
 
 class BookRecommender:
     def __init__(self):
-        self.books_df        = None
-        self.embeddings      = None
-        self.user_factors    = None
-        self.book_factors    = None
-        self.user2idx        = {}
-        self.book2idx        = {}
-        self.idx2book        = {}
-        self.model           = None
-        self.is_ready        = False
+        self.books_df     = None
+        self.embeddings   = None
+        self.user_factors = None
+        self.book_factors = None
+        self.user2idx     = {}
+        self.book2idx     = {}
+        self.idx2book     = {}
+        self.model        = None
+        self.is_ready     = False
 
     async def initialize(self):
-        """Load data, train models, prepare for serving."""
         logger.info("Initializing BookRS recommender...")
 
         # Load books
-        logger.info("Loading books dataset...")
         self.books_df = pd.read_parquet(settings.books_path)
         logger.info(f"Loaded {len(self.books_df):,} books")
 
-        # Load SBERT model (Experiment 1: all-MiniLM-L6-v2)
-        logger.info("Loading SBERT model...")
+        # Load SBERT model
         self.model = SentenceTransformer(settings.EMBEDDING_MODEL)
 
-        # Compute or load embeddings
+        # Load or compute embeddings
         embeddings_path = settings.models_path / "embeddings.npy"
         settings.models_path.mkdir(parents=True, exist_ok=True)
 
@@ -49,36 +52,31 @@ class BookRecommender:
             logger.info("Loading cached embeddings...")
             self.embeddings = np.load(str(embeddings_path))
         else:
-            logger.info("Computing embeddings (first time, takes a few minutes)...")
+            logger.info("Computing embeddings (first time)...")
             texts = (self.books_df["title"] + ". " + self.books_df["description"].fillna("")).tolist()
             self.embeddings = self.model.encode(
                 texts, batch_size=128, show_progress_bar=True,
                 normalize_embeddings=True, device="cuda"
             ).astype(np.float32)
             np.save(str(embeddings_path), self.embeddings)
-            logger.info("Embeddings saved to cache!")
+            logger.info("Embeddings saved!")
 
         # Build book index
         self.book2idx = {bid: i for i, bid in enumerate(self.books_df["book_id"])}
         self.idx2book = {i: bid for bid, i in self.book2idx.items()}
 
-        # Train ALS on interactions
+        # Train ALS
         await self._train_als()
 
         self.is_ready = True
-        logger.info("✅ BookRS recommender ready!")
+        logger.info("BookRS recommender ready!")
 
     async def _train_als(self):
-        """Train ALS model with confidence weighting (Experiment 5: Config C)."""
-        logger.info("Loading interactions and training ALS...")
-
+        logger.info("Training ALS...")
         interactions = pd.read_parquet(settings.interactions_path)
-
-        # Filter to books in our dataset
         valid_books = set(self.books_df["book_id"])
         interactions = interactions[interactions["book_id"].isin(valid_books)]
 
-        # Build user index
         user_ids = interactions["user_id"].unique()
         self.user2idx = {u: i for i, u in enumerate(user_ids)}
         n_users = len(user_ids)
@@ -86,7 +84,7 @@ class BookRecommender:
 
         interactions["u_idx"] = interactions["user_id"].map(self.user2idx)
         interactions["b_idx"] = interactions["book_id"].map(self.book2idx)
-        interactions = interactions.dropna(subset=["u_idx", "b_idx"])
+        interactions = interactions.dropna(subset=["u_idx","b_idx"])
         interactions["u_idx"] = interactions["u_idx"].astype(int)
         interactions["b_idx"] = interactions["b_idx"].astype(int)
         interactions = interactions[
@@ -107,7 +105,6 @@ class BookRecommender:
             shape=(n_users, n_books)
         )
 
-        # Train ALS (Experiment 3: factors=128, reg=0.1, iters=10)
         als = implicit.als.AlternatingLeastSquares(
             factors=settings.ALS_FACTORS,
             regularization=settings.ALS_REGULARIZATION,
@@ -115,47 +112,110 @@ class BookRecommender:
             use_gpu=False
         )
         als.fit(train_matrix.T.tocsr())
-
-        # Swap factors (transposed matrix)
         self.book_factors = als.user_factors   # (n_books, 128)
         self.user_factors = als.item_factors   # (n_users, 128)
-
         logger.info(f"ALS trained! Users: {n_users:,} Books: {n_books:,}")
+
+
+    def _compute_user_vector(self, rated_book_ids: list, ratings: list) -> np.ndarray:
+        """
+        ALS Folding-In: compute user vector for new users instantly.
+        Uses frozen book_factors to solve for optimal user vector.
+        Industry standard approach (Hu et al. 2008).
+        
+        Math: user_vec = (B.T @ B + λI)^-1 @ B.T @ r
+        Where B = book factors for rated books, r = ratings
+        """
+        valid = [(self.book2idx[bid], r) for bid, r in zip(rated_book_ids, ratings)
+                 if bid in self.book2idx]
+        if not valid:
+            return None
+
+        idxs, rs = zip(*valid)
+        B = self.book_factors[list(idxs)].astype(np.float64)
+        r = np.array(rs, dtype=np.float64)
+
+        # Confidence weighting (Experiment 5: Config C)
+        confidence = 1.0 + r * 2.0
+
+        # Weighted least squares: (B.T @ C @ B + λI) @ u = B.T @ C @ r
+        C = np.diag(confidence)
+        A = B.T @ C @ B + settings.ALS_REGULARIZATION * np.eye(B.shape[1])
+        b = B.T @ C @ r
+
+        try:
+            user_vec = np.linalg.solve(A, b)
+            return user_vec.astype(np.float32)
+        except np.linalg.LinAlgError:
+            return None
 
     def get_hybrid_recommendations(
         self,
         user_id: str,
         n: int = 10,
+        rated_book_ids: Optional[list] = None,
         exclude_book_ids: Optional[list] = None
-    ) -> list[dict]:
+    ) -> tuple[list[dict], str]:
         """
-        Hybrid recommendation: α × content + (1-α) × collaborative
-        α = 0.1 (Experiment 2)
+        Option C cold-start strategy:
+        0 ratings   → Popular
+        1-4 ratings → Content-based
+        5+ ratings  → Full Hybrid
+        UCSD user   → Full Hybrid
         """
         if not self.is_ready:
-            return self._get_popular(n)
+            return self._get_popular(n), "popular"
 
+        rated_books = rated_book_ids or []
+        exclude = set(exclude_book_ids or []) | set(rated_books)
         n_books = len(self.books_df)
-        exclude = set(exclude_book_ids or [])
 
-        # Collaborative score
-        if user_id in self.user2idx:
+        # ── Stage 1: Check if UCSD user ──────────────────────
+        is_ucsd_user = user_id in self.user2idx
+
+        # ── Stage 2: Check local ratings count ───────────────
+        n_rated = len(rated_books)
+
+        # ── Cold start: 0 ratings, not UCSD user ─────────────
+        if n_rated == 0 and not is_ucsd_user:
+            recs = self._get_popular(n)
+            return recs, "popular"
+
+        # ── Content-based: 1-4 ratings, not UCSD user ────────
+        if n_rated < 5 and not is_ucsd_user:
+            recs = self._get_content_from_books(rated_books, n, exclude)
+            return recs, "content"
+
+        # ── Full Hybrid: 5+ ratings OR UCSD user ─────────────
+        # CF score
+        method = "hybrid"
+        if is_ucsd_user:
+            # Direct ALS lookup for known UCSD users
             u_idx = self.user2idx[user_id]
             cf_scores = self.user_factors[u_idx] @ self.book_factors.T
         else:
-            cf_scores = np.zeros(n_books)
+            # Folding-in for new users with 5+ ratings
+            ratings_list = [1.0] * len(rated_books)
+            user_vec = self._compute_user_vector(rated_books, ratings_list)
+            if user_vec is not None:
+                cf_scores = user_vec @ self.book_factors.T
+            else:
+                cf_scores = np.zeros(n_books, dtype=np.float32)
 
-        # Content score: mean embedding of user's rated books
-        content_scores = np.zeros(n_books)
-        if user_id in self.user2idx:
-            u_idx = self.user2idx[user_id]
-            # Get books this user interacted with
-            user_book_idxs = np.where(
-                self.user_factors[u_idx] @ self.book_factors.T > 0
-            )[0][:20]
-            if len(user_book_idxs) > 0:
-                profile = self.embeddings[user_book_idxs].mean(axis=0)
+        # Content score from rated books
+        if rated_books:
+            valid_idxs = [self.book2idx[b] for b in rated_books if b in self.book2idx]
+            if valid_idxs:
+                profile = self.embeddings[valid_idxs].mean(axis=0)
                 content_scores = profile @ self.embeddings.T
+            else:
+                content_scores = np.zeros(n_books, dtype=np.float32)
+        elif is_ucsd_user:
+            # Use ALS factors as proxy for content profile
+            u_idx = self.user2idx[user_id]
+            content_scores = np.zeros(n_books, dtype=np.float32)
+        else:
+            content_scores = np.zeros(n_books, dtype=np.float32)
 
         # Normalize
         def norm(x):
@@ -165,27 +225,41 @@ class BookRecommender:
         hybrid = settings.ALPHA * norm(content_scores) + \
                  (1 - settings.ALPHA) * norm(cf_scores)
 
-        # Exclude already seen
+        # Exclude seen books
         for bid in exclude:
             if bid in self.book2idx:
                 hybrid[self.book2idx[bid]] = -1
 
-        # Get top N
         top_idxs = np.argsort(hybrid)[-n:][::-1]
-        return self._idxs_to_books(top_idxs, hybrid, "hybrid")
+        recs = self._idxs_to_books(top_idxs, hybrid, method)
+        return recs, method
+
+    def _get_content_from_books(self, book_ids: list, n: int, exclude: set) -> list[dict]:
+        """Content-based recommendations from a list of book IDs."""
+        valid_idxs = [self.book2idx[b] for b in book_ids if b in self.book2idx]
+        if not valid_idxs:
+            return self._get_popular(n)
+
+        profile = self.embeddings[valid_idxs].mean(axis=0)
+        scores = profile @ self.embeddings.T
+
+        for bid in exclude:
+            if bid in self.book2idx:
+                scores[self.book2idx[bid]] = -1
+
+        top_idxs = np.argsort(scores)[-n:][::-1]
+        return self._idxs_to_books(top_idxs, scores, "content")
 
     def get_content_recommendations(self, book_id: str, n: int = 10) -> list[dict]:
-        """Content-based: find similar books using SBERT embeddings."""
         if book_id not in self.book2idx:
             return []
         idx = self.book2idx[book_id]
         scores = self.embeddings[idx] @ self.embeddings.T
-        scores[idx] = -1  # exclude self
+        scores[idx] = -1
         top_idxs = np.argsort(scores)[-n:][::-1]
         return self._idxs_to_books(top_idxs, scores, "content")
 
     def get_popular(self, n: int = 10, genre: Optional[str] = None) -> list[dict]:
-        """Popularity-based recommendations."""
         df = self.books_df.copy()
         if genre:
             df = df[df["genre"] == genre]
@@ -194,7 +268,6 @@ class BookRecommender:
                 for _, row in top.iterrows()]
 
     def get_trending(self, n: int = 10) -> list[dict]:
-        """Trending: high rated books (proxy for trending in static dataset)."""
         trending = self.books_df[self.books_df["ratings_count"] >= 1000]\
                        .nlargest(n * 3, "avg_rating")\
                        .sample(n, random_state=None)
@@ -202,7 +275,6 @@ class BookRecommender:
                 for _, row in trending.iterrows()]
 
     def search(self, query: str, n: int = 10) -> list[dict]:
-        """Semantic search using SBERT embeddings."""
         query_emb = self.model.encode(
             [query], normalize_embeddings=True, device="cuda"
         ).astype(np.float32)[0]
@@ -225,15 +297,14 @@ class BookRecommender:
 
     def _book_to_dict(self, row, score, method) -> dict:
         return {
-            "book_id":   row["book_id"],
-            "title":     row["title"],
-            "authors":   row["authors"],
-            "genre":     row.get("genre", ""),
-            "avg_rating": float(row["avg_rating"]),
-            "image_url": row.get("image_url", ""),
-            "score":     round(float(score), 4),
-            "reason":    method,
+            "book_id":      row["book_id"],
+            "title":        row["title"],
+            "authors":      row["authors"],
+            "genre":        row.get("genre", ""),
+            "avg_rating":   float(row["avg_rating"]),
+            "image_url":    row.get("image_url", ""),
+            "score":        round(float(score), 4),
+            "reason":       method,
         }
 
-# Global instance
 recommender = BookRecommender()

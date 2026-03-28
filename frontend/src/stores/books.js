@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { recommendApi, searchApi } from '../services/api'
+import { useUserStore } from './user'
 
 export const useBookStore = defineStore('books', () => {
   const recommendations = ref([])
@@ -8,13 +9,17 @@ export const useBookStore = defineStore('books', () => {
   const trending = ref([])
   const searchResults = ref([])
   const isLoading = ref(false)
-  const currentUserId = ref('user_1')  // default user for demo
+  const recommendMethod = ref('popular')
 
   async function fetchRecommendations() {
     isLoading.value = true
     try {
-      const res = await recommendApi.getHybrid(currentUserId.value)
+      const userStore = useUserStore()
+      const userId = userStore.userId || 'anonymous'
+      const ratedBooks = [...userStore.ratedBooks.keys()].join(',')
+      const res = await recommendApi.getHybrid(userId, 10, ratedBooks)
       recommendations.value = res.data.recommendations
+      recommendMethod.value = res.data.method
     } catch (e) {
       console.error('Failed to fetch recommendations:', e)
     } finally {
@@ -61,7 +66,7 @@ export const useBookStore = defineStore('books', () => {
 
   return {
     recommendations, popular, trending, searchResults,
-    isLoading, currentUserId,
+    isLoading, recommendMethod,
     fetchRecommendations, fetchPopular, fetchTrending, search
   }
 })

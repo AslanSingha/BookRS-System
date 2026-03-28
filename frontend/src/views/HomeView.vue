@@ -9,12 +9,33 @@
       </router-link>
     </div>
 
-    <!-- Recommended for you -->
+    <!-- Recommendation method badge -->
     <section class="mb-10">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-bold text-gray-900">✨ Recommended For You</h2>
-        <span class="text-sm text-gray-400">Powered by BookRS Hybrid (ALS + SBERT)</span>
+        <div class="flex items-center gap-2">
+          <span class="text-xs px-3 py-1 rounded-full font-medium"
+            :class="{
+              'bg-blue-50 text-blue-700': store.recommendMethod === 'hybrid',
+              'bg-green-50 text-green-700': store.recommendMethod === 'content',
+              'bg-orange-50 text-orange-700': store.recommendMethod === 'popular',
+            }">
+            {{ methodLabel }}
+          </span>
+          <button @click="store.fetchRecommendations()"
+            class="text-xs text-gray-400 hover:text-primary-600">
+            🔄 Refresh
+          </button>
+        </div>
       </div>
+
+      <!-- Cold start hint -->
+      <div v-if="store.recommendMethod === 'popular' && userStore.isLoggedIn"
+        class="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-sm text-blue-700">
+        💡 Rate some books to get personalized recommendations!
+        <span class="font-medium">{{ userStore.ratedBooks.size }}/5 ratings done</span>
+      </div>
+
       <BookGrid :books="store.recommendations" :is-loading="store.isLoading" />
     </section>
 
@@ -39,11 +60,22 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useBookStore } from '../stores/books'
+import { useUserStore } from '../stores/user'
 import BookGrid from '../components/BookGrid.vue'
 
 const store = useBookStore()
+const userStore = useUserStore()
+
+const methodLabel = computed(() => {
+  const map = {
+    'hybrid': '🤖 Hybrid (ALS + SBERT)',
+    'content': '📖 Content-Based (SBERT)',
+    'popular': '🔥 Popular Books',
+  }
+  return map[store.recommendMethod] || store.recommendMethod
+})
 
 onMounted(async () => {
   await Promise.all([

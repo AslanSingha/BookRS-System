@@ -6,7 +6,7 @@ import logging
 from app.core.config import settings
 from app.core.database import init_db
 from app.services.recommender import recommender
-from app.api.routes import books, recommendations, search, users
+from app.api.routes import books, recommendations, search, users, actions
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ app.include_router(books.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(actions.router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
