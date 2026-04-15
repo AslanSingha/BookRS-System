@@ -39,3 +39,7 @@ export const actionsApi = {
 }
 
 export default api
+
+export const usersApi = {
+  login: (userId) => api.post('/users/login', { user_id: userId }),
+}

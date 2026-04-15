@@ -12,27 +12,35 @@ export const useUserStore = defineStore('user', () => {
     userId.value = id
     isLoggedIn.value = true
     localStorage.setItem('bookrs_user_id', id)
-    // Load history from DB
+    // Sync UCSD ratings if user exists in dataset
+    try {
+      await api.post('/users/login', { user_id: id })
+    } catch (e) {
+      console.error('Login sync failed:', e)
+    }
+    // Load history from DB (includes synced UCSD ratings)
     await loadHistoryFromDB(id)
   }
 
   async function loadHistoryFromDB(id) {
     try {
-      const res = await api.get(`/actions/${id}`)
-      const actions = res.data
+      // Load combined ratings (UCSD + app) 
+      const [ratingsRes, actionsRes] = await Promise.all([
+        api.get(`/users/${id}/all-ratings`),
+        api.get(`/actions/${id}`)
+      ])
 
-      // Rebuild ratings and favorites from DB
       const newRatings = new Map()
       const newFavorites = new Set()
 
-      for (const action of actions) {
-        if (action.action_type === 'rating') {
-          // Keep the latest rating for each book
-          if (!newRatings.has(action.book_id) ||
-              new Date(action.created_at) > new Date(newRatings.get(action.book_id).created_at)) {
-            newRatings.set(action.book_id, action.value)
-          }
-        } else if (action.action_type === 'favorite') {
+      // Load all ratings (UCSD + app combined)
+      for (const r of ratingsRes.data) {
+        newRatings.set(r.book_id, r.rating)
+      }
+
+      // Load favorites and other actions
+      for (const action of actionsRes.data) {
+        if (action.action_type === 'favorite') {
           newFavorites.add(action.book_id)
         }
       }
