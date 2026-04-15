@@ -310,6 +310,58 @@ class BookRecommender:
         return [self._book_to_dict(row, row["avg_rating"], "trending")
                 for _, row in trending.iterrows()]
 
+
+    def personalized_search(
+        self,
+        query: str,
+        user_id: str,
+        rated_book_ids: list = None,
+        n: int = 10
+    ) -> list[dict]:
+        """
+        Personalized search: 0.7 × semantic + 0.3 × CF
+        Query intent dominates, user taste re-ranks results.
+        """
+        rated_books = rated_book_ids or []
+        n_books = len(self.books_df)
+
+        # Semantic scores from query
+        query_emb = self.model.encode(
+            [query], normalize_embeddings=True, device="cuda"
+        ).astype(np.float32)[0]
+        semantic_scores = query_emb @ self.embeddings.T
+
+        # CF scores
+        cf_scores = np.zeros(n_books, dtype=np.float32)
+
+        if user_id in self.user2idx:
+            # UCSD user — direct ALS lookup
+            u_idx = self.user2idx[user_id]
+            cf_scores = self.user_factors[u_idx] @ self.book_factors.T
+        elif len(rated_books) >= 5:
+            # New user with enough ratings — folding in
+            ratings_list = [1.0] * len(rated_books)
+            user_vec = self._compute_user_vector(rated_books, ratings_list)
+            if user_vec is not None:
+                cf_scores = user_vec @ self.book_factors.T
+        elif len(rated_books) > 0:
+            # Few ratings — use content profile
+            valid_idxs = [self.book2idx[b] for b in rated_books if b in self.book2idx]
+            if valid_idxs:
+                profile = self.embeddings[valid_idxs].mean(axis=0)
+                cf_scores = profile @ self.embeddings.T
+
+        # Normalize both
+        def norm(x):
+            mn, mx = x.min(), x.max()
+            return (x - mn) / (mx - mn + 1e-9)
+
+        # Query dominates (0.7), taste re-ranks (0.3)
+        combined = 0.7 * norm(semantic_scores) + 0.3 * norm(cf_scores)
+
+        top_idxs = np.argsort(combined)[-n:][::-1]
+        return self._idxs_to_books(top_idxs, combined, "personalized")
+
     def search(self, query: str, n: int = 10) -> list[dict]:
         query_emb = self.model.encode(
             [query], normalize_embeddings=True, device="cuda"

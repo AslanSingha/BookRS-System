@@ -30,6 +30,10 @@ export const recommendApi = {
 export const searchApi = {
   search: (query, n = 10) =>
     api.get('/search/', { params: { q: query, n } }),
+  personalized: (query, userId, n = 10, ratedBooks = '') =>
+    api.get('/search/personalized', {
+      params: { q: query, user_id: userId, n, rated_books: ratedBooks || undefined }
+    }),
 }
 
 export const actionsApi = {
