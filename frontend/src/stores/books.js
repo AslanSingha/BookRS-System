@@ -15,7 +15,16 @@ export const useBookStore = defineStore('books', () => {
     isLoading.value = true
     try {
       const userStore = useUserStore()
-      const userId = userStore.userId || 'anonymous'
+
+      // Not logged in → show trending (different from popular section)
+      if (!userStore.isLoggedIn) {
+        const res = await recommendApi.getTrending(10)
+        recommendations.value = res.data.recommendations
+        recommendMethod.value = 'popular'
+        return
+      }
+
+      const userId = userStore.userId
       const ratedBooks = [...userStore.ratedBooks.keys()].join(',')
       const res = await recommendApi.getHybrid(userId, 10, ratedBooks)
       recommendations.value = res.data.recommendations

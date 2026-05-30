@@ -11,7 +11,7 @@
           <form @submit.prevent="handleSearch" class="relative">
             <input v-model="searchQuery" type="text"
               placeholder="Search books by title, author, or topic..."
-              class="w-full pl-4 pr-10 py-2 rounded-full border border-gray-200 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm" />
+              class="w-full pl-4 pr-10 py-2 rounded-full border border-gray-200 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm [&::-webkit-search-cancel-button]:hidden" />
             <button type="submit" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary-600">🔍</button>
           </form>
         </div>

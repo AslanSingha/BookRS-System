@@ -69,6 +69,10 @@ class BookRecommender:
         # Train ALS
         await self._train_als()
 
+        # Pre-build trending pool at startup
+        self._build_trending_pool()
+        logger.info(f"Trending pool built: {len(self._trending_pool)} books")
+
         self.is_ready = True
         logger.info("BookRS recommender ready!")
 
@@ -303,13 +307,61 @@ class BookRecommender:
         return [self._book_to_dict(row, row["ratings_count"], "popular")
                 for _, row in top.iterrows()]
 
-    def get_trending(self, n: int = 10) -> list[dict]:
-        trending = self.books_df[self.books_df["ratings_count"] >= 1000]\
-                       .nlargest(n * 3, "avg_rating")\
-                       .sample(n, random_state=None)
-        return [self._book_to_dict(row, row["avg_rating"], "trending")
-                for _, row in trending.iterrows()]
+    def _build_trending_pool(self) -> list[dict]:
+        """
+        Build a pool of 200 diverse trending books.
+        Called once at startup. Deduplicates by author first name.
+        """
+        import numpy as np
 
+        df = self.books_df[self.books_df["ratings_count"] >= 1000].copy()
+        df["score"] = df["avg_rating"] * np.log1p(df["ratings_count"])
+        df = df.sort_values("score", ascending=False)
+
+        # Max 1 book per author (use first word of first author name)
+        df["_auth"] = df["authors"].str.lower().str.split().str[0].str.strip()
+        df = df.drop_duplicates(subset="_auth", keep="first")
+        df = df.drop(columns=["_auth"])
+
+        pool = [
+            self._book_to_dict(row, row["score"], "trending")
+            for _, row in df.head(200).iterrows()
+        ]
+        self._trending_pool = pool
+        logger.info(f"Trending pool built: {len(pool)} diverse books")
+        return pool
+
+
+
+    def get_trending(self, n: int = 10) -> list[dict]:
+        """
+        Returns diverse trending books from pre-built pool.
+        Cached for 10 minutes. Different sample each window.
+        """
+        import time
+        import numpy as np
+
+        now = time.time()
+        window = int(now // 600)
+
+        if (hasattr(self, "_trending_cache") and
+            hasattr(self, "_trending_window") and
+            self._trending_window == window):
+            return self._trending_cache[:n]
+
+        pool = getattr(self, "_trending_pool", None)
+        if pool is None:
+            pool = self._build_trending_pool()
+
+        rng = np.random.RandomState(window)
+        size = min(n, len(pool))
+        idx = rng.choice(len(pool), size=size, replace=False)
+        result = sorted([pool[i] for i in idx],
+                        key=lambda x: x["score"], reverse=True)
+
+        self._trending_cache = result
+        self._trending_window = window
+        return result[:n]
 
     def personalized_search(
         self,
