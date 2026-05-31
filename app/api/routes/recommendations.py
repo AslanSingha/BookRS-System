@@ -37,7 +37,7 @@ async def get_similar_books(book_id: str, n: int = Query(10, ge=1, le=50)):
 
 @router.get("/popular", response_model=RecommendationResponse)
 async def get_popular_books(
-    n: int = Query(10, ge=1, le=50),
+    n: int = Query(10, ge=1, le=200),
     genre: str = Query(None)
 ):
     recs = recommender.get_popular(n=n, genre=genre)
@@ -48,7 +48,7 @@ async def get_popular_books(
     )
 
 @router.get("/trending", response_model=RecommendationResponse)
-async def get_trending_books(n: int = Query(10, ge=1, le=50)):
+async def get_trending_books(n: int = Query(10, ge=1, le=200)):
     recs = recommender.get_trending(n=n)
     return RecommendationResponse(
         user_id="",
