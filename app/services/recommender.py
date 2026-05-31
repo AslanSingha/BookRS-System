@@ -281,23 +281,39 @@ class BookRecommender:
     def get_content_recommendations(self, book_id: str, n: int = 10) -> list[dict]:
         if book_id not in self.book2idx:
             return []
-        # Use cache if available (fast!)
-        if book_id in self.similar_cache:
-            cached_ids = self.similar_cache[book_id][:n]
-            results = []
-            for bid in cached_ids:
-                if bid in self.book2idx:
-                    idx = self.book2idx[bid]
-                    row = self.books_df[self.books_df["book_id"] == bid]
-                    if not row.empty:
-                        results.append(self._book_to_dict(row.iloc[0], 1.0, "content"))
-            return results
-        # Fallback: compute on-the-fly for uncached books
-        idx = self.book2idx[book_id]
-        scores = self.embeddings[idx] @ self.embeddings.T
-        scores[idx] = -1
-        top_idxs = np.argsort(scores)[-n:][::-1]
-        return self._idxs_to_books(top_idxs, scores, "content")
+
+        if book_id not in self.similar_cache:
+            idx = self.book2idx[book_id]
+            scores = self.embeddings[idx] @ self.embeddings.T
+            scores[idx] = -1
+
+            # Get more candidates for deduplication
+            top_idxs = np.argsort(scores)[-(n * 8):][::-1]
+
+            # Keep max 1 book per author (first word of author name)
+            seen_authors = set()
+            filtered = []
+            for i in top_idxs:
+                bid = self.idx2book[i]
+                row = self.books_df[self.books_df["book_id"] == bid]
+                if row.empty:
+                    continue
+                author_key = str(row.iloc[0]["authors"]).lower().split()[0]
+                if author_key not in seen_authors:
+                    seen_authors.add(author_key)
+                    filtered.append(bid)
+                if len(filtered) >= n:
+                    break
+
+            self.similar_cache[book_id] = filtered
+
+        cached_ids = self.similar_cache[book_id][:n]
+        results = []
+        for bid in cached_ids:
+            row = self.books_df[self.books_df["book_id"] == bid]
+            if not row.empty:
+                results.append(self._book_to_dict(row.iloc[0], 1.0, "content"))
+        return results
 
     def get_popular(self, n: int = 10, genre: Optional[str] = None) -> list[dict]:
         df = self.books_df.copy()

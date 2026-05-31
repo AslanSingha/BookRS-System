@@ -163,20 +163,29 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from './stores/user'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const searchQuery = ref('')
 const showLogin = ref(false)
 const loginId = ref('')
 
+// Sync navbar search with current route query
+watch(() => route.query.q, (q) => {
+  if (route.name === 'Search' && q) {
+    searchQuery.value = q
+  } else if (route.name !== 'Search') {
+    searchQuery.value = ''
+  }
+}, { immediate: true })
+
 function handleSearch() {
   if (searchQuery.value.trim()) {
     router.push({ name: 'Search', query: { q: searchQuery.value } })
-    searchQuery.value = ''
   }
 }
 

@@ -1,34 +1,21 @@
 <template>
   <div>
-    <!-- Header -->
+    <!-- Header — shows current query or default -->
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-900 mb-1">Search</h1>
-      <p class="text-sm text-slate-500">Find books by title, author, topic or genre</p>
-    </div>
-
-    <!-- Search bar -->
-    <form @submit.prevent="handleSearch" class="mb-6">
-      <div class="flex gap-2">
-        <div class="relative flex-1">
-          <div class="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
-            </svg>
-          </div>
-          <input v-model="query" type="text"
-            placeholder="e.g. magic adventure, Haruki Murakami, self improvement..."
-            class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
-          />
-        </div>
-        <button type="submit"
-          class="btn-primary px-5 py-2.5 rounded-xl flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
-          </svg>
-          Search
-        </button>
+      <div class="flex items-center gap-2 mb-1">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+        </svg>
+        <h1 class="text-2xl font-bold text-slate-900">
+          {{ lastQuery ? `"${lastQuery}"` : 'Search' }}
+        </h1>
       </div>
-    </form>
+      <p class="text-sm text-slate-500">
+        {{ lastQuery
+          ? 'Use the search bar above to refine your query'
+          : 'Use the search bar above to find books by title, author or topic' }}
+      </p>
+    </div>
 
     <!-- Results -->
     <div v-if="lastQuery">
@@ -109,7 +96,7 @@
       </p>
       <div class="flex flex-wrap gap-2 justify-center mt-5">
         <button v-for="hint in hints" :key="hint"
-          @click="query = hint; handleSearch()"
+          @click="router.push({ name: 'Search', query: { q: hint } })"
           class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
           {{ hint }}
         </button>
