@@ -1,88 +1,129 @@
 <template>
   <div>
-    <h1 class="text-2xl font-bold mb-6">🔍 Search Books</h1>
+    <!-- Header -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-slate-900 mb-1">Search</h1>
+      <p class="text-sm text-slate-500">Find books by title, author, topic or genre</p>
+    </div>
 
     <!-- Search bar -->
     <form @submit.prevent="handleSearch" class="mb-6">
-      <div class="flex gap-3">
-        <input
-          v-model="query"
-          type="text"
-          placeholder="Search by title, author, topic, genre..."
-          class="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-        />
-        <button type="submit" class="btn-primary px-6 py-3 rounded-xl">Search</button>
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <div class="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
+            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+          </div>
+          <input v-model="query" type="text"
+            placeholder="e.g. magic adventure, Haruki Murakami, self improvement..."
+            class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
+          />
+        </div>
+        <button type="submit"
+          class="btn-primary px-5 py-2.5 rounded-xl flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+          </svg>
+          Search
+        </button>
       </div>
     </form>
 
-    <!-- Tabs -->
-    <div v-if="lastQuery" class="flex gap-2 mb-6">
-      <button
-        @click="activeTab = 'semantic'"
-        :class="[
-          'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-          activeTab === 'semantic'
-            ? 'bg-primary-600 text-white'
-            : 'bg-white text-gray-600 border border-gray-200 hover:border-primary-400'
-        ]">
-        🔍 Semantic Search
-        <span class="text-xs ml-1 opacity-75">SBERT only</span>
-      </button>
-      <button
-        @click="activeTab = 'personalized'"
-        :class="[
-          'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-          activeTab === 'personalized'
-            ? 'bg-primary-600 text-white'
-            : 'bg-white text-gray-600 border border-gray-200 hover:border-primary-400'
-        ]">
-        ✨ For You
-        <span class="text-xs ml-1 opacity-75">SBERT + ALS</span>
-      </button>
-    </div>
-
     <!-- Results -->
     <div v-if="lastQuery">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-semibold text-gray-700">
-          {{ currentResults.length }} results for "{{ lastQuery }}"
-        </h2>
-        <span class="text-sm text-gray-400">
-          {{ activeTab === 'semantic' ? 'Semantic search powered by SBERT' : 'Personalized by SBERT + ALS' }}
-        </span>
+      <!-- Tabs -->
+      <div class="flex items-center gap-1 mb-5 border-b border-slate-100 pb-0">
+        <button @click="activeTab = 'semantic'"
+          class="px-4 py-2.5 text-sm font-medium transition-colors relative"
+          :class="activeTab === 'semantic'
+            ? 'text-slate-900'
+            : 'text-slate-500 hover:text-slate-700'">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            Semantic
+          </span>
+          <div v-if="activeTab === 'semantic'"
+            class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-900 rounded-full"></div>
+        </button>
+        <button @click="activeTab = 'personalized'"
+          class="px-4 py-2.5 text-sm font-medium transition-colors relative"
+          :class="activeTab === 'personalized'
+            ? 'text-slate-900'
+            : 'text-slate-500 hover:text-slate-700'">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+            </svg>
+            For You
+            <span v-if="!userStore.isLoggedIn"
+              class="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+              Sign in
+            </span>
+          </span>
+          <div v-if="activeTab === 'personalized'"
+            class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-900 rounded-full"></div>
+        </button>
       </div>
 
-      <!-- Not logged in warning for personalized tab -->
+      <!-- Result count -->
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-sm text-slate-500">
+          <span class="font-medium text-slate-900">{{ currentResults.length }}</span>
+          results for
+          <span class="font-medium text-slate-900">"{{ lastQuery }}"</span>
+        </p>
+        <p class="text-xs text-slate-400">
+          {{ activeTab === 'semantic' ? 'SBERT semantic search' : 'Personalised · SBERT + ALS' }}
+        </p>
+      </div>
+
+      <!-- Not logged in warning -->
       <div v-if="activeTab === 'personalized' && !userStore.isLoggedIn"
-        class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-700">
-        💡 Login and rate books to get personalized search results!
-        Showing semantic search results instead.
+        class="bg-primary-50 border border-primary-100 rounded-xl p-3 mb-4 flex items-center gap-3">
+        <svg class="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-xs text-primary-700">
+          Sign in and rate books to get results personalised to your taste.
+          Showing semantic results instead.
+        </p>
       </div>
 
       <BookGrid :books="currentResults" :is-loading="isLoading" />
     </div>
 
     <!-- Empty state -->
-    <div v-else class="text-center py-16 text-gray-400">
-      <p class="text-5xl mb-4">🔍</p>
-      <p class="text-lg">Search for any book, author, or topic</p>
-      <p class="text-sm mt-2">
-        BookRS uses semantic search to find what you mean, not just what you type
+    <div v-else class="flex flex-col items-center justify-center py-20 text-center">
+      <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+        <svg class="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+        </svg>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700 mb-1">Search for any book</h3>
+      <p class="text-sm text-slate-400 max-w-sm">
+        BookRS uses semantic search — search by meaning, not just keywords.
+        Try "dystopian society", "magical realism", or an author name.
       </p>
-      <div class="mt-4 flex justify-center gap-4 text-sm">
-        <span class="bg-gray-100 px-3 py-1 rounded-full">🔍 Semantic Search</span>
-        <span class="bg-primary-50 text-primary-700 px-3 py-1 rounded-full">✨ Personalized For You</span>
+      <div class="flex flex-wrap gap-2 justify-center mt-5">
+        <button v-for="hint in hints" :key="hint"
+          @click="query = hint; handleSearch()"
+          class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+          {{ hint }}
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBookStore } from '../stores/books'
 import { useUserStore } from '../stores/user'
-import { searchApi, recommendApi } from '../services/api'
+import { searchApi } from '../services/api'
 import BookGrid from '../components/BookGrid.vue'
 
 const store = useBookStore()
@@ -96,6 +137,8 @@ const isLoading = ref(false)
 const semanticResults = ref([])
 const personalizedResults = ref([])
 
+const hints = ['magic adventure', 'dystopian society', 'self improvement', 'historical fiction', 'mystery thriller', 'STEM science']
+
 const currentResults = computed(() =>
   activeTab.value === 'semantic' ? semanticResults.value : personalizedResults.value
 )
@@ -104,56 +147,37 @@ async function handleSearch() {
   if (!query.value.trim()) return
   lastQuery.value = query.value
   router.replace({ name: 'Search', query: { q: query.value } })
-  await Promise.all([
-    doSemanticSearch(query.value),
-    doPersonalizedSearch(query.value)
-  ])
-}
-
-async function doSemanticSearch(q) {
   isLoading.value = true
   try {
-    const res = await searchApi.search(q, 20)
-    semanticResults.value = res.data.results
+    const [semRes] = await Promise.all([
+      searchApi.search(query.value, 20),
+    ])
+    semanticResults.value = semRes.data.results
+    if (userStore.isLoggedIn) {
+      const ratedBooks = [...userStore.ratedBooks.keys()].join(',')
+      const perRes = await searchApi.personalized(query.value, userStore.userId, 20, ratedBooks)
+      personalizedResults.value = perRes.data.results
+    } else {
+      personalizedResults.value = semanticResults.value
+    }
   } catch (e) {
-    console.error('Semantic search failed:', e)
+    console.error('Search failed:', e)
   } finally {
     isLoading.value = false
-  }
-}
-
-async function doPersonalizedSearch(q) {
-  if (!userStore.isLoggedIn) {
-    personalizedResults.value = semanticResults.value
-    return
-  }
-  try {
-    const ratedBooks = [...userStore.ratedBooks.keys()].join(',')
-    const res = await searchApi.personalized(
-      q, userStore.userId, 20, ratedBooks
-    )
-    personalizedResults.value = res.data.results
-  } catch (e) {
-    console.error('Personalized search failed:', e)
-    personalizedResults.value = semanticResults.value
   }
 }
 
 watch(() => route.query.q, (newQ) => {
   if (newQ && newQ !== lastQuery.value) {
     query.value = newQ
-    lastQuery.value = newQ
-    doSemanticSearch(newQ)
-    doPersonalizedSearch(newQ)
+    handleSearch()
   }
 }, { immediate: true })
 
 onMounted(() => {
   if (route.query.q) {
     query.value = route.query.q
-    lastQuery.value = route.query.q
-    doSemanticSearch(route.query.q)
-    doPersonalizedSearch(route.query.q)
+    handleSearch()
   }
 })
 </script>

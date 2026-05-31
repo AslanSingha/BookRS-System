@@ -1,42 +1,88 @@
 <template>
-  <router-link :to="`/book/${book.book_id}`" class="book-card block overflow-hidden">
-    <!-- Cover image -->
-    <div class="relative h-48 bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center overflow-hidden">
+  <router-link :to="`/book/${book.book_id}`" class="book-card block group">
+
+    <!-- Cover -->
+    <div class="relative overflow-hidden bg-slate-100 rounded-t-xl" style="aspect-ratio:2/3">
       <img
-        v-if="book.image_url && !imgError"
+        v-if="isValidUrl && !imgError"
         :src="book.image_url"
         :alt="book.title"
-        class="w-full h-full object-cover"
+        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         @error="imgError = true"
+        loading="lazy"
       />
-      <span v-else class="text-5xl">📖</span>
+      <!-- Placeholder -->
+      <div v-else
+        class="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
+        <div class="w-8 h-8 rounded-lg bg-slate-300 flex items-center justify-center mb-2">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+        </div>
+        <p class="text-xs text-slate-400 text-center line-clamp-2 font-medium leading-snug">
+          {{ book.title }}
+        </p>
+      </div>
 
-      <!-- Genre badge -->
-      <span v-if="book.genre" class="absolute top-2 left-2 bg-white/90 text-xs px-2 py-0.5 rounded-full text-primary-700 font-medium">
-        {{ formatGenre(book.genre) }}
-      </span>
+      <!-- Genre pill — bottom left of image -->
+      <div v-if="book.genre"
+        class="absolute bottom-2 left-2">
+        <span class="text-xs font-medium px-2 py-0.5 rounded-md
+          bg-black/50 text-white backdrop-blur-sm tracking-wide">
+          {{ formatGenre(book.genre) }}
+        </span>
+      </div>
+
+      <!-- Trending indicator — top right, subtle dot only -->
+      <div v-if="isTrending"
+        class="absolute top-2 right-2">
+        <div class="w-6 h-6 rounded-full bg-black/40 backdrop-blur-sm
+          flex items-center justify-center"
+          title="Trending">
+          <svg class="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+              d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Hover overlay -->
+      <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10
+        transition-colors duration-300 rounded-t-xl">
+      </div>
     </div>
 
-    <!-- Info -->
-    <div class="p-3">
-      <h3 class="font-semibold text-sm text-gray-900 line-clamp-2 mb-1">{{ book.title }}</h3>
-      <p class="text-xs text-gray-500 mb-2">{{ book.authors }}</p>
+    <!-- Text info -->
+    <div class="px-2.5 pt-2.5 pb-3">
+      <!-- Title -->
+      <h3 class="font-medium text-[13px] text-slate-900 line-clamp-2
+        leading-snug mb-0.5 group-hover:text-primary-600 transition-colors">
+        {{ book.title }}
+      </h3>
 
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-1">
-          <span class="text-yellow-400 text-xs">★</span>
-          <span class="text-xs text-gray-600">{{ book.avg_rating?.toFixed(1) || 'N/A' }}</span>
-        </div>
-        <span v-if="book.reason" class="text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
-          {{ reasonLabel(book.reason) }}
+      <!-- Author -->
+      <p class="text-[11px] text-slate-400 truncate mb-2 leading-relaxed">
+        {{ book.authors }}
+      </p>
+
+      <!-- Rating — always on its own line, clean -->
+      <div class="flex items-center gap-1">
+        <svg class="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0"
+          viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+        </svg>
+        <span class="text-[12px] font-medium text-slate-600">
+          {{ book.avg_rating?.toFixed(1) || '—' }}
         </span>
       </div>
     </div>
+
   </router-link>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   book: { type: Object, required: true }
@@ -44,31 +90,33 @@ const props = defineProps({
 
 const imgError = ref(false)
 
-function formatGenre(genre) {
-  const map = {
-    'fiction': 'Fiction',
-    'non-fiction': 'Non-Fiction',
-    'romance': 'Romance',
-    'fantasy, paranormal': 'Fantasy',
-    'mystery, thriller, crime': 'Mystery',
-    'history, historical fiction, biography': 'History',
-    'children': 'Children',
-    'comics, graphic': 'Comics',
-    'young-adult': 'Young Adult',
-    'poetry': 'Poetry',
-    'science, technology, engineering, mathematics': 'STEM',
-  }
-  return map[genre] || genre
+const isValidUrl = computed(() => {
+  const url = props.book.image_url
+  if (!url) return false
+  if (url.includes('nophoto')) return false
+  if (url.includes('assets/nophoto')) return false
+  return url.startsWith('http')
+})
+
+// Never show trending indicator — section title carries the context
+// Only show if book appears in non-trending context (future use)
+const isTrending = computed(() => false)
+
+const genreMap = {
+  'fiction': 'Fiction',
+  'non-fiction': 'Non-Fiction',
+  'romance': 'Romance',
+  'fantasy, paranormal': 'Fantasy',
+  'mystery, thriller, crime': 'Mystery',
+  'history, historical fiction, biography': 'History',
+  'children': 'Children',
+  'comics, graphic': 'Comics',
+  'young-adult': 'YA',
+  'poetry': 'Poetry',
+  'science, technology, engineering, mathematics': 'STEM',
 }
 
-function reasonLabel(reason) {
-  const map = {
-    'hybrid': '✨ For You',
-    'content': '📖 Similar',
-    'popular': '🔥 Popular',
-    'trending': '📈 Trending',
-    'search': '🔍 Match',
-  }
-  return map[reason] || reason
+function formatGenre(genre) {
+  return genreMap[genre] || genre
 }
 </script>
