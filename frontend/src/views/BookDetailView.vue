@@ -101,8 +101,18 @@
             </p>
           </div>
 
-          <!-- Description -->
-          <p class="text-sm text-slate-600 leading-relaxed line-clamp-4">{{ book.description }}</p>
+          <!-- Description with see more/less -->
+          <div>
+            <p class="text-sm text-slate-600 leading-relaxed"
+              :class="showFullDesc ? '' : 'line-clamp-4'">
+              {{ book.description }}
+            </p>
+            <button v-if="book.description && book.description.length > 300"
+              @click="showFullDesc = !showFullDesc"
+              class="text-xs text-primary-600 hover:text-primary-700 font-medium mt-1.5 transition-colors">
+              {{ showFullDesc ? 'See less' : 'See more' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -154,6 +164,7 @@ const similar = ref([])
 const imgError = ref(false)
 const loadingSimilar = ref(false)
 const loading = ref(true)
+const showFullDesc = ref(false)
 
 const isValidUrl = computed(() => {
   const url = book.value?.image_url
@@ -185,6 +196,7 @@ function formatGenre(g) { return genreMap[g] || g }
 async function loadBook(id) {
   loading.value = true
   imgError.value = false
+  showFullDesc.value = false
   book.value = null
   similar.value = []
   try {

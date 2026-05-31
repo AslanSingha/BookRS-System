@@ -146,7 +146,7 @@
           <span class="text-sm font-medium text-slate-600">BookRS</span>
         </div>
         <p class="text-xs text-slate-400">
-          AI-Powered Book Recommendation System · Master's Thesis · ITC Cambodia 2025
+          AI-Powered Book Recommendation System · Institute of Technology of Cambodia 2026
         </p>
         <div class="flex items-center gap-4 text-xs text-slate-400">
           <a href="https://github.com/AslanSingha/bookrss" target="_blank"

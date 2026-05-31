@@ -51,7 +51,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.trending.slice(0, 6)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.trending.slice(0, 10)" :is-loading="store.isLoading" />
       </section>
 
       <!-- Most Popular -->
@@ -71,7 +71,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.popular.slice(0, 6)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.popular.slice(0, 10)" :is-loading="store.isLoading" />
       </section>
 
       <!-- Sign in CTA -->
@@ -184,7 +184,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.trending.slice(0, 6)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.trending.slice(0, 10)" :is-loading="store.isLoading" />
       </section>
 
       <!-- Popular -->
@@ -204,7 +204,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.popular.slice(0, 6)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.popular.slice(0, 10)" :is-loading="store.isLoading" />
       </section>
 
     </template>

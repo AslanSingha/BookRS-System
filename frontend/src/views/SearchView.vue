@@ -155,7 +155,7 @@ async function handleSearch() {
     semanticResults.value = semRes.data.results
     if (userStore.isLoggedIn) {
       const ratedBooks = [...userStore.ratedBooks.keys()].join(',')
-      const perRes = await searchApi.personalized(query.value, userStore.userId, 20, ratedBooks)
+      const perRes = await searchApi.personalized(query.value, userStore.userId, 30, ratedBooks)
       personalizedResults.value = perRes.data.results
     } else {
       personalizedResults.value = semanticResults.value

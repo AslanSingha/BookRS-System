@@ -39,7 +39,7 @@ export const useBookStore = defineStore('books', () => {
   async function fetchPopular(genre = null) {
     isLoading.value = true
     try {
-      const res = await recommendApi.getPopular(20, genre)
+      const res = await recommendApi.getPopular(30, genre)
       popular.value = res.data.recommendations
     } catch (e) {
       console.error('Failed to fetch popular:', e)
@@ -51,7 +51,7 @@ export const useBookStore = defineStore('books', () => {
   async function fetchTrending() {
     isLoading.value = true
     try {
-      const res = await recommendApi.getTrending(20)
+      const res = await recommendApi.getTrending(30)
       trending.value = res.data.recommendations
     } catch (e) {
       console.error('Failed to fetch trending:', e)
@@ -64,7 +64,7 @@ export const useBookStore = defineStore('books', () => {
     if (!query.trim()) return
     isLoading.value = true
     try {
-      const res = await searchApi.search(query, 20)
+      const res = await searchApi.search(query, 30)
       searchResults.value = res.data.results
     } catch (e) {
       console.error('Search failed:', e)
