@@ -48,10 +48,10 @@ export const useBookStore = defineStore('books', () => {
     }
   }
 
-  async function fetchTrending() {
+  async function fetchTrending(n = 30) {
     isLoading.value = true
     try {
-      const res = await recommendApi.getTrending(30)
+      const res = await recommendApi.getTrending(n)
       trending.value = res.data.recommendations
     } catch (e) {
       console.error('Failed to fetch trending:', e)

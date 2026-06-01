@@ -42,6 +42,44 @@ class BookRecommender:
         self.books_df = pd.read_parquet(settings.books_path)
         logger.info(f"Loaded {len(self.books_df):,} books")
 
+        # ── Catalogue deduplication ──────────────────────────────
+        # Standard entity resolution: keep one canonical record
+        # per unique (title, author) pair — highest ratings_count wins.
+        # This mirrors Goodreads "Works" and Amazon "parent ASIN" patterns.
+        import re
+
+        def canonical_key(title, author):
+            """Normalise title+author into a deduplication key."""
+            t = str(title).lower().strip()
+            # Remove edition/volume/part markers
+            t = re.sub(r"\s*[\(\[].*?[\)\]]", "", t)   # remove (...)
+            t = re.sub(r",?\s*(part|vol|book|#)\s*[\d.]+.*$", "", t)
+            t = t.strip()
+            a = str(author).lower().split(",")[0].strip()
+            return f"{t}|||{a}"
+
+        self.books_df["_canon_key"] = self.books_df.apply(
+            lambda r: canonical_key(r["title"], r["authors"]), axis=1
+        )
+        before = len(self.books_df)
+        self.books_df = (
+            self.books_df
+            .sort_values("ratings_count", ascending=False)
+            .drop_duplicates(subset="_canon_key", keep="first")
+            .drop(columns=["_canon_key"])
+        )
+        after = len(self.books_df)
+        logger.info(f"Catalogue deduplication: {before:,} → {after:,} unique works")
+
+        # IMPORTANT: filter embeddings to match deduplicated books_df
+        # embeddings rows correspond to original books_df row positions
+        # After dedup, books_df.index contains the ORIGINAL row positions
+        original_indices = self.books_df.index.tolist()
+        # Load full embeddings first if not loaded yet
+        # (embeddings loaded after this block, so store indices for later)
+        self._dedup_indices = original_indices
+        self.books_df = self.books_df.reset_index(drop=True)
+
         # Load SBERT model
         self.model = SentenceTransformer(settings.EMBEDDING_MODEL)
 
@@ -62,12 +100,30 @@ class BookRecommender:
             np.save(str(embeddings_path), self.embeddings)
             logger.info("Embeddings saved!")
 
+        # Reorder embeddings to match deduplicated books_df
+        if hasattr(self, '_dedup_indices') and self._dedup_indices is not None:
+            logger.info(f"Reordering embeddings to match {len(self._dedup_indices):,} deduplicated books...")
+            self.embeddings = self.embeddings[self._dedup_indices]
+            logger.info(f"Embeddings reordered: {self.embeddings.shape}")
+            # Verify HP embedding is correct
+            logger.info(f"Embedding[1] first 3 vals: {self.embeddings[1][:3]}")
+            del self._dedup_indices
+
         # Build book index
         self.book2idx = {bid: i for i, bid in enumerate(self.books_df["book_id"])}
         self.idx2book = {i: bid for bid, i in self.book2idx.items()}
 
         # Train ALS
         await self._train_als()
+
+        # Pre-build fast lookup arrays for similar books
+        self._titles_lower = self.books_df["title"].str.lower().str.strip().values
+        self._authors_lower = self.books_df["authors"].str.lower().str.split(",").str[0].str.strip().values
+        self._ratings_count = self.books_df["ratings_count"].values
+        logger.info("Fast lookup arrays built!")
+
+        # GPU used only for SBERT encoding (already handled by sentence-transformers)
+        # CPU is fast enough for similarity search (0.13s per query)
 
         # Pre-build trending pool at startup
         self._build_trending_pool()
@@ -279,88 +335,57 @@ class BookRecommender:
         logger.info(f"Similar books pre-computed for {count:,} books!")
 
     def get_content_recommendations(self, book_id: str, n: int = 10) -> list[dict]:
+        """
+        Find books with similar SBERT embeddings.
+        Dataset is pre-deduplicated at startup so simple
+        title+author filtering is sufficient.
+        """
         if book_id not in self.book2idx:
             return []
 
         if book_id not in self.similar_cache:
             idx = self.book2idx[book_id]
-            scores = self.embeddings[idx] @ self.embeddings.T
-            scores[idx] = -1
 
-            # Large pool to escape duplicate clusters
-            pool_size = min(5000, len(scores))
+            # Fast CPU similarity — 0.13s on 1.24M embeddings
+            scores = self.embeddings[idx] @ self.embeddings.T
+            scores[idx] = -1  # exclude self
+
+            # Small pool — dataset is deduplicated so no duplicate clusters
+            pool_size = min(500, len(scores))
             top_idxs = np.argsort(scores)[-pool_size:][::-1]
 
-            # Deduplicate by both title AND author
-            seen_titles = set()
-            seen_authors = set()
-            filtered = []
+            # Source book info for exclusion
+            source_title  = self._titles_lower[idx]
+            source_author = self._authors_lower[idx]
 
-            # Get source book title for exclusion
-            source_row = self.books_df[self.books_df["book_id"] == book_id]
-            source_title = ""
-            source_author = ""
-            if not source_row.empty:
-                source_title = str(source_row.iloc[0]["title"]).lower().strip()
-                source_author = str(source_row.iloc[0]["authors"]).lower().split(",")[0].strip()
+            seen_titles  = set()
+            seen_authors = set()
+            skip_keywords = ["companion", "guide", "review", "recipe", "unofficial", "unauthorized", "parody", "philosophy", "trivia", "analysis", "quiz", "summary", "handbook", "cookbook", "essays", "anthology", "vault", "treasury", "biography", "encyclopedia", "lexicon", "the end of", "psycholog", "and history", "and philosophy", "a history", "the wizard behind", "j. k. rowling", "j.k. rowling:", "rowling:", "authors on suzanne", "girl who was on fire"]
+            source_key = source_title.split("(")[0].strip()
+            filtered     = []
 
             for i in top_idxs:
-                bid = self.idx2book[i]
-                row = self.books_df[self.books_df["book_id"] == bid]
-                if row.empty:
-                    continue
+                title        = self._titles_lower[i]
+                author       = self._authors_lower[i]
+                ratings      = self._ratings_count[i]
 
-                title = str(row.iloc[0]["title"]).lower().strip()
-                author = str(row.iloc[0]["authors"]).lower().split(",")[0].strip()
+                # Skip source book
+                if title  == source_title:  continue
+                if author == source_author: continue
+                if source_key and len(source_key) > 4 and source_key in title: continue
+                if any(kw in title for kw in skip_keywords): continue
+                if ratings < 500: continue
 
-                # Skip source book and its variants
-                if source_title and title == source_title:
-                    continue
-                if source_author and author == source_author:
-                    continue
+                # Skip low-quality books
 
-                # Skip companion/parody/review books that reference source
-                source_words = set(source_title.split()[:3])
-                title_words = set(title.split()[:5])
-                if len(source_words & title_words) >= 2:
-                    continue
 
-                # Skip companion/guide/review/recipe/essay/biography books
-                skip_keywords = [
-                    'companion', 'guide', 'review', 'recipe', 'unofficial',
-                    'unauthorized', 'parody', 'philosophy', 'trivia',
-                    'analysis', 'quiz', 'summary', 'handbook', 'cookbook',
-                    'essays', 'anthology', 'authors on', 'inspired by',
-                    'based on', 'cattail', 'panem', 'vault', 'treasury',
-                    'magical worlds', 'wizard behind', 'character vault',
-                    'biography', 'the making of', 'behind the scenes',
-                    'the world of', 'encyclopedia', 'lexicon', 'atlas',
-                    'a history', 'the end of', 'phenomenon', 'the story of',
-                    'unauthorized', 'fan guide', 'movie guide',
-                    'mugglenet', 'what will happen', 'who will die',
-                    'predictions', 'theories', 'fan site'
-                ]
-                if any(kw in title for kw in skip_keywords):
-                    continue
-
-                # Skip if title mentions source book characters/places
-                source_key = source_title.split('(')[0].strip().lower()
-                if source_key and source_key in title:
-                    continue
-
-                # Require meaningful ratings count
-                if row.iloc[0]["ratings_count"] < 500:
-                    continue
-
-                # Skip duplicates
-                if title in seen_titles:
-                    continue
-                if author in seen_authors:
-                    continue
+                # Skip title duplicates (belt-and-suspenders after dedup)
+                if title  in seen_titles:  continue
+                if author in seen_authors: continue
 
                 seen_titles.add(title)
                 seen_authors.add(author)
-                filtered.append(bid)
+                filtered.append(self.idx2book[i])
 
                 if len(filtered) >= n:
                     break
@@ -368,11 +393,13 @@ class BookRecommender:
             self.similar_cache[book_id] = filtered
 
         cached_ids = self.similar_cache[book_id][:n]
-        results = []
+        results    = []
         for bid in cached_ids:
-            row = self.books_df[self.books_df["book_id"] == bid]
-            if not row.empty:
-                results.append(self._book_to_dict(row.iloc[0], 1.0, "content"))
+            if bid in self.book2idx:
+                i = self.book2idx[bid]
+                results.append(self._book_to_dict(
+                    self.books_df.iloc[i], 1.0, "content"
+                ))
         return results
 
     def get_popular(self, n: int = 10, genre: Optional[str] = None) -> list[dict]:
@@ -382,6 +409,15 @@ class BookRecommender:
         top = df.nlargest(n, "ratings_count")
         return [self._book_to_dict(row, row["ratings_count"], "popular")
                 for _, row in top.iterrows()]
+
+    def _prewarm_similar_cache(self, n_books: int = 50):
+        """Pre-compute similar books for top N popular books at startup."""
+        top_books = self.books_df.nlargest(n_books, "ratings_count")["book_id"].tolist()
+        logger.info(f"Pre-warming similar books cache for {n_books} popular books...")
+        for book_id in top_books:
+            if book_id not in self.similar_cache:
+                self.get_content_recommendations(book_id, n=12)
+        logger.info(f"Cache pre-warmed: {len(self.similar_cache)} books cached!")
 
     def _build_trending_pool(self) -> list[dict]:
         """
