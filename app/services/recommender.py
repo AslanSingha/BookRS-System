@@ -287,21 +287,81 @@ class BookRecommender:
             scores = self.embeddings[idx] @ self.embeddings.T
             scores[idx] = -1
 
-            # Get more candidates for deduplication
-            top_idxs = np.argsort(scores)[-(n * 8):][::-1]
+            # Large pool to escape duplicate clusters
+            pool_size = min(5000, len(scores))
+            top_idxs = np.argsort(scores)[-pool_size:][::-1]
 
-            # Keep max 1 book per author (first word of author name)
+            # Deduplicate by both title AND author
+            seen_titles = set()
             seen_authors = set()
             filtered = []
+
+            # Get source book title for exclusion
+            source_row = self.books_df[self.books_df["book_id"] == book_id]
+            source_title = ""
+            source_author = ""
+            if not source_row.empty:
+                source_title = str(source_row.iloc[0]["title"]).lower().strip()
+                source_author = str(source_row.iloc[0]["authors"]).lower().split(",")[0].strip()
+
             for i in top_idxs:
                 bid = self.idx2book[i]
                 row = self.books_df[self.books_df["book_id"] == bid]
                 if row.empty:
                     continue
-                author_key = str(row.iloc[0]["authors"]).lower().split()[0]
-                if author_key not in seen_authors:
-                    seen_authors.add(author_key)
-                    filtered.append(bid)
+
+                title = str(row.iloc[0]["title"]).lower().strip()
+                author = str(row.iloc[0]["authors"]).lower().split(",")[0].strip()
+
+                # Skip source book and its variants
+                if source_title and title == source_title:
+                    continue
+                if source_author and author == source_author:
+                    continue
+
+                # Skip companion/parody/review books that reference source
+                source_words = set(source_title.split()[:3])
+                title_words = set(title.split()[:5])
+                if len(source_words & title_words) >= 2:
+                    continue
+
+                # Skip companion/guide/review/recipe/essay/biography books
+                skip_keywords = [
+                    'companion', 'guide', 'review', 'recipe', 'unofficial',
+                    'unauthorized', 'parody', 'philosophy', 'trivia',
+                    'analysis', 'quiz', 'summary', 'handbook', 'cookbook',
+                    'essays', 'anthology', 'authors on', 'inspired by',
+                    'based on', 'cattail', 'panem', 'vault', 'treasury',
+                    'magical worlds', 'wizard behind', 'character vault',
+                    'biography', 'the making of', 'behind the scenes',
+                    'the world of', 'encyclopedia', 'lexicon', 'atlas',
+                    'a history', 'the end of', 'phenomenon', 'the story of',
+                    'unauthorized', 'fan guide', 'movie guide',
+                    'mugglenet', 'what will happen', 'who will die',
+                    'predictions', 'theories', 'fan site'
+                ]
+                if any(kw in title for kw in skip_keywords):
+                    continue
+
+                # Skip if title mentions source book characters/places
+                source_key = source_title.split('(')[0].strip().lower()
+                if source_key and source_key in title:
+                    continue
+
+                # Require meaningful ratings count
+                if row.iloc[0]["ratings_count"] < 500:
+                    continue
+
+                # Skip duplicates
+                if title in seen_titles:
+                    continue
+                if author in seen_authors:
+                    continue
+
+                seen_titles.add(title)
+                seen_authors.add(author)
+                filtered.append(bid)
+
                 if len(filtered) >= n:
                     break
 
