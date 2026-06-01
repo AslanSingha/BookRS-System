@@ -10,7 +10,7 @@
           <h1 class="text-2xl font-bold text-slate-900">Trending Now</h1>
         </div>
         <p class="text-sm text-slate-500">
-          Scored by rating quality × engagement · refreshes every minute
+          Scored by rating quality × engagement · updates every 10 minutes
         </p>
       </div>
       <button @click="refresh"
