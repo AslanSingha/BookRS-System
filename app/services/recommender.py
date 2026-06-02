@@ -296,7 +296,7 @@ class BookRecommender:
         return recs, method
 
     def _get_content_from_books(self, book_ids: list, n: int, exclude: set) -> list[dict]:
-        """Content-based recommendations from a list of book IDs."""
+        """Content-based recommendations from a list of book IDs with proper filtering."""
         valid_idxs = [self.book2idx[b] for b in book_ids if b in self.book2idx]
         if not valid_idxs:
             return self._get_popular(n)
@@ -304,12 +304,103 @@ class BookRecommender:
         profile = self.embeddings[valid_idxs].mean(axis=0)
         scores = profile @ self.embeddings.T
 
+        # Exclude rated/source books
         for bid in exclude:
             if bid in self.book2idx:
                 scores[self.book2idx[bid]] = -1
 
-        top_idxs = np.argsort(scores)[-n:][::-1]
-        return self._idxs_to_books(top_idxs, scores, "content")
+        # Build exclusion info from source books
+        source_authors = set()
+        source_series  = set()
+        source_keys    = set()
+        for bid in book_ids:
+            if bid not in self.book2idx:
+                continue
+            idx = self.book2idx[bid]
+            author = self._authors_lower[idx]
+            title  = self._titles_lower[idx]
+            # Author last name
+            parts = author.replace(".", " ").split()
+            if parts:
+                source_authors.add(parts[-1])
+            # Series name
+            if "(" in title:
+                series = title.split("(")[-1].split(",")[0].strip()
+                if len(series) > 4:
+                    source_series.add(series)
+            # Title key
+            key = title.split("(")[0].strip()
+            if len(key) > 4:
+                source_keys.add(key)
+
+        skip_keywords = [
+            "companion", "guide", "review", "unofficial", "unauthorized",
+            "parody", "philosophy", "trivia", "analysis", "quiz", "summary",
+            "handbook", "cookbook", "essays", "anthology", "biography",
+            "encyclopedia", "lexicon", "psycholog", "and history",
+            "and philosophy", "a history", "the making of",
+            "character vault", "treasury of", "magical worlds of",
+            "the world of", "vault", "treasury", "a to z",
+            "the unofficial", "field guide", "fan art"
+        ]
+
+        pool_size = min(500, len(scores))
+        top_idxs  = np.argsort(scores)[-pool_size:][::-1]
+
+        seen_titles  = set()
+        seen_authors = set()
+        filtered     = []
+
+        for i in top_idxs:
+            title   = self._titles_lower[i]
+            author  = self._authors_lower[i]
+            ratings = self._ratings_count[i]
+
+            # Skip excluded books
+            bid = self.idx2book[i]
+            if bid in exclude: continue
+
+            # Skip same author variants
+            author_parts = author.replace(".", " ").split()
+            author_last  = author_parts[-1] if author_parts else ""
+            if any(al == author_last for al in source_authors if len(al) > 4): continue
+
+            # Skip titles referencing source books (translations, editions)
+            if any(key in title for key in source_keys if len(key) > 4): continue
+
+            # Skip if title contains source author name (biographies)
+            if any(al in title for al in source_authors if len(al) > 4): continue
+
+            # Skip same series
+            if "(" in title:
+                cand_series = title.split("(")[-1].split(",")[0].strip()
+                if cand_series in source_series: continue
+
+            # Skip companion/guide books
+            if any(kw in title for kw in skip_keywords): continue
+
+            # Minimum quality threshold
+            if ratings < 500: continue
+
+            # Skip duplicates
+            if title  in seen_titles:  continue
+            if author in seen_authors: continue
+
+            seen_titles.add(title)
+            seen_authors.add(author)
+            filtered.append(i)
+
+            if len(filtered) >= n:
+                break
+
+        # Return using fast positional lookup
+        results = []
+        for i in filtered:
+            results.append(self._book_to_dict(
+                self.books_df.iloc[i], float(scores[i]), "content"
+            ))
+        return results
+
 
     async def _precompute_similar(self, top_n: int = 50000, k: int = 10):
         """Pre-compute similar books for top N most-rated books."""
@@ -362,6 +453,12 @@ class BookRecommender:
             seen_authors = set()
             skip_keywords = ["companion", "guide", "review", "recipe", "unofficial", "unauthorized", "parody", "philosophy", "trivia", "analysis", "quiz", "summary", "handbook", "cookbook", "essays", "anthology", "vault", "treasury", "biography", "encyclopedia", "lexicon", "the end of", "psycholog", "and history", "and philosophy", "a history", "the wizard behind", "j. k. rowling", "j.k. rowling:", "rowling:", "authors on suzanne", "girl who was on fire"]
             source_key = source_title.split("(")[0].strip()
+            # Author name variants for robust exclusion
+            author_parts = source_author.replace(".", " ").split()
+            author_last  = author_parts[-1] if author_parts else ""
+            # Series name for same-series exclusion
+            source_series = source_title.split("(")[-1].split(",")[0].strip() if "(" in source_title else ""
+
             filtered     = []
 
             for i in top_idxs:
@@ -370,9 +467,25 @@ class BookRecommender:
                 ratings      = self._ratings_count[i]
 
                 # Skip source book
-                if title  == source_title:  continue
+                # Skip source book
+                if title == source_title: continue
+
+                # Skip same author (handle j.k. rowling variants)
                 if author == source_author: continue
+                if author_last and len(author_last) > 4 and author_last in author: continue
+
+                # Skip if title references source book or is a translation
                 if source_key and len(source_key) > 4 and source_key in title: continue
+
+                # Skip if candidate title contains source author last name
+                # (catches biographies e.g. "Daniel Radcliffe" for HP)
+                if author_last and len(author_last) > 4 and author_last in title: continue
+
+                # Skip same series books
+                if source_series and len(source_series) > 4:
+                    cand_series = title.split("(")[-1].split(",")[0].strip() if "(" in title else ""
+                    if cand_series == source_series: continue
+
                 if any(kw in title for kw in skip_keywords): continue
                 if ratings < 500: continue
 
