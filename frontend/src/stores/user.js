@@ -114,6 +114,17 @@ export const useUserStore = defineStore('user', () => {
     await logAction(bookId, 'rating', rating)
   }
 
+  async function deleteRating(bookId) {
+    if (!isLoggedIn.value) return
+    try {
+      await fetch(`http://localhost:8000/api/v1/users/${userId.value}/ratings/${bookId}`, {
+        method: 'DELETE'
+      })
+    } catch (e) { /* continue */ }
+    ratedBooks.value.delete(bookId)
+    localStorage.setItem('bookrs_ratings', JSON.stringify([...ratedBooks.value.entries()]))
+  }
+
   async function logView(bookId) {
     await logAction(bookId, 'view', 1)
   }
@@ -127,7 +138,7 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     userId, isLoggedIn, favorites, ratedBooks,
-    login, logout, logAction, toggleFavorite, rateBook, logView,
+    login, logout, logAction, toggleFavorite, rateBook, deleteRating, logView,
     loadHistoryFromDB, initializeSession
   }
 })

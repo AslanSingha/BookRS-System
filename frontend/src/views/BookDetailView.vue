@@ -78,19 +78,29 @@
             <div class="flex items-center gap-1">
               <button v-for="star in 5" :key="star"
                 @click="handleRating(star)"
-                class="transition-transform hover:scale-110 active:scale-95">
+                class="transition-transform hover:scale-110 active:scale-95"
+                :title="`Rate ${star} star${star > 1 ? 's' : ''}`">
                 <svg class="w-7 h-7 transition-colors"
                   :class="star <= thisBookRating ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200 hover:text-amber-300 hover:fill-amber-300'"
                   viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                 </svg>
               </button>
-              <span v-if="thisBookRating"
-                class="ml-2 text-xs text-emerald-600 font-medium flex items-center gap-1">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                </svg>
-                Saved
+              <span v-if="thisBookRating" class="ml-2 flex items-center gap-2">
+                <span class="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  {{ thisBookRating }}/5 saved
+                </span>
+                <button @click="handleDeleteRating"
+                  class="text-xs text-red-400 hover:text-red-600 flex items-center gap-0.5 transition-colors"
+                  title="Remove rating">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  Remove
+                </button>
               </span>
             </div>
           </div>
@@ -219,7 +229,17 @@ async function handleFavorite() {
 }
 
 async function handleRating(star) {
+  // Click same star again = remove rating
+  if (thisBookRating.value === star) {
+    await handleDeleteRating()
+    return
+  }
   await userStore.rateBook(route.params.id, star)
+  bookStore.fetchRecommendations()
+}
+
+async function handleDeleteRating() {
+  await userStore.deleteRating(route.params.id)
   bookStore.fetchRecommendations()
 }
 

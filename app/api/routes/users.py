@@ -151,3 +151,18 @@ async def get_all_ratings(user_id: str, db: AsyncSession = Depends(get_db)):
         }
 
     return list(ratings_map.values())
+
+@router.delete("/{user_id}/ratings/{book_id}")
+async def delete_rating(user_id: str, book_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a user's rating for a book."""
+    result = await db.execute(
+        select(Interaction)
+        .where(Interaction.user_id == user_id)
+        .where(Interaction.book_id == book_id)
+    )
+    interaction = result.scalar_one_or_none()
+    if interaction is None:
+        return {"status": "not_found"}
+    await db.delete(interaction)
+    await db.commit()
+    return {"status": "deleted", "book_id": book_id}
