@@ -385,20 +385,19 @@ class BookRecommender:
 
                 seen_titles.add(title)
                 seen_authors.add(author)
-                filtered.append(self.idx2book[i])
+                filtered.append((self.idx2book[i], float(scores[i])))
 
                 if len(filtered) >= n:
                     break
-
             self.similar_cache[book_id] = filtered
 
-        cached_ids = self.similar_cache[book_id][:n]
-        results    = []
-        for bid in cached_ids:
+        cached_items = self.similar_cache[book_id][:n]
+        results = []
+        for bid, score in cached_items:
             if bid in self.book2idx:
                 i = self.book2idx[bid]
                 results.append(self._book_to_dict(
-                    self.books_df.iloc[i], 1.0, "content"
+                    self.books_df.iloc[i], score, "content"
                 ))
         return results
 
@@ -466,7 +465,7 @@ class BookRecommender:
             pool = self._build_trending_pool()
 
         rng = np.random.RandomState(window)
-        size = min(n, len(pool))
+        size = min(100, len(pool))
         idx = rng.choice(len(pool), size=size, replace=False)
         result = sorted([pool[i] for i in idx],
                         key=lambda x: x["score"], reverse=True)
