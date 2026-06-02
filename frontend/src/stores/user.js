@@ -83,13 +83,29 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function toggleFavorite(bookId) {
-    if (favorites.value.has(bookId)) {
-      favorites.value.delete(bookId)
-    } else {
-      favorites.value.add(bookId)
-      await logAction(bookId, 'favorite', 1)
+    if (!isLoggedIn.value) return
+    try {
+      const res = await fetch('http://localhost:8000/api/v1/actions/toggle-favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId.value, book_id: bookId, action_type: 'favorite', value: 1 })
+      })
+      const data = await res.json()
+      if (data.favorited) {
+        favorites.value.add(bookId)
+      } else {
+        favorites.value.delete(bookId)
+      }
+      localStorage.setItem('bookrs_favorites', JSON.stringify([...favorites.value]))
+    } catch (e) {
+      // Fallback: toggle locally
+      if (favorites.value.has(bookId)) {
+        favorites.value.delete(bookId)
+      } else {
+        favorites.value.add(bookId)
+      }
+      localStorage.setItem('bookrs_favorites', JSON.stringify([...favorites.value]))
     }
-    localStorage.setItem('bookrs_favorites', JSON.stringify([...favorites.value]))
   }
 
   async function rateBook(bookId, rating) {
