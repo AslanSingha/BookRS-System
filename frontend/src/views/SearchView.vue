@@ -21,6 +21,7 @@
     <div v-if="lastQuery">
       <!-- Tabs -->
       <div class="flex items-center gap-1 mb-5 border-b border-slate-100 pb-0">
+        <!-- Semantic Tab -->
         <button @click="activeTab = 'semantic'"
           class="px-4 py-2.5 text-sm font-medium transition-colors relative"
           :class="activeTab === 'semantic'
@@ -30,11 +31,18 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
             </svg>
-            Semantic
+            Semantic Search
+            <span class="text-xs font-semibold px-1.5 py-0.5 rounded"
+              :class="activeTab === 'semantic'
+                ? 'bg-violet-100 text-violet-700'
+                : 'bg-slate-100 text-slate-400'">
+              SBERT
+            </span>
           </span>
           <div v-if="activeTab === 'semantic'"
             class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-900 rounded-full"></div>
         </button>
+        <!-- For You Tab -->
         <button @click="activeTab = 'personalized'"
           class="px-4 py-2.5 text-sm font-medium transition-colors relative"
           :class="activeTab === 'personalized'
@@ -45,6 +53,12 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
             </svg>
             For You
+            <span class="text-xs font-semibold px-1.5 py-0.5 rounded"
+              :class="activeTab === 'personalized'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-slate-100 text-slate-400'">
+              SBERT + ALS
+            </span>
             <span v-if="!userStore.isLoggedIn"
               class="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
               Sign in
@@ -110,7 +124,6 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useBookStore } from '../stores/books'
-import { useUserStore } from '../stores/user'
 import { searchApi } from '../services/api'
 import BookGrid from '../components/BookGrid.vue'
 
@@ -118,7 +131,6 @@ const store = useBookStore()
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
-const userStore = useUserStore()
 
 async function handleSearchClick(bookId) {
   await userStore.logSearchClick(bookId)

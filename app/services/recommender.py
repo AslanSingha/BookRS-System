@@ -327,7 +327,24 @@ class BookRecommender:
                 hybrid[self.book2idx[bid]] = -1
 
         top_idxs = np.argsort(hybrid)[-n:][::-1]
-        recs = self._idxs_to_books(top_idxs, hybrid, method)
+        # Build context for reason generation
+        ctx = {
+            "is_ucsd":  is_ucsd_user,
+            "n_rated":  n_rated,
+            "top_book": None,
+        }
+        # Find top rated book title for content reason
+        if rated_books:
+            for bid in rated_books:
+                if bid in self.book2idx:
+                    row = self.books_df[self.books_df["book_id"] == bid]
+                    if len(row) > 0:
+                        ctx["top_book"] = row.iloc[0]["title"][:40]
+                        break
+        recs = [self._book_to_dict(
+                    self.books_df[self.books_df["book_id"] == self.idx2book[i]].iloc[0],
+                    float(hybrid[i]), method, ctx)
+                for i in top_idxs if self.idx2book[i] in self.books_df["book_id"].values]
         return recs, method
 
     def _get_weighted_content(self, rated_books, fav_books, clicked_books,
@@ -736,7 +753,41 @@ class BookRecommender:
             results.append(self._book_to_dict(row, float(scores[idx]), method))
         return results
 
-    def _book_to_dict(self, row, score, method) -> dict:
+    def _book_to_dict(self, row, score, method, context: dict = None) -> dict:
+        ctx = context or {}
+        # Build human-readable reason
+        reason_map = {
+            "popular":      "Trending among all readers",
+            "content":      "Matches your taste profile",
+            "hybrid":       "Recommended by Hybrid AI (ALS + SBERT)",
+            "personalized": "Personalised to your search",
+            "search":       "Semantically similar to your query",
+            "trending":     "Trending right now",
+        }
+        reason = reason_map.get(method, method)
+        # Enrich reason with context
+        if method == "hybrid" and ctx.get("is_ucsd"):
+            reason = "Collaborative filtering match (ALS)"
+        elif method == "hybrid" and ctx.get("n_rated", 0) >= 20:
+            reason = "Hybrid AI: ALS + SBERT (strong profile)"
+        elif method == "hybrid":
+            reason = "Hybrid AI: SBERT + ALS"
+        elif method == "content" and ctx.get("top_book"):
+            reason = f"Similar to “{ctx['top_book']}”"
+        elif method == "popular" and row.get("genre"):
+            genre_labels = {
+                "fiction": "Fiction", "non-fiction": "Non-Fiction",
+                "fantasy, paranormal": "Fantasy",
+                "mystery, thriller, crime": "Mystery",
+                "science, technology, engineering, mathematics": "STEM",
+                "history, historical fiction, biography": "History",
+                "romance": "Romance", "young-adult": "Young Adult",
+                "children": "Children", "poetry": "Poetry",
+                "comics, graphic": "Comics",
+            }
+            g = genre_labels.get(row.get("genre",""), "")
+            if g:
+                reason = f"Popular in {g}"
         return {
             "book_id":      row["book_id"],
             "title":        row["title"],
@@ -745,7 +796,7 @@ class BookRecommender:
             "avg_rating":   float(row["avg_rating"]),
             "image_url":    row.get("image_url", ""),
             "score":        round(float(score), 4),
-            "reason":       method,
+            "reason":       reason,
         }
 
 recommender = BookRecommender()

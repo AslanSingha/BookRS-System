@@ -83,6 +83,19 @@
         </div>
       </div>
 
+      <!-- Favourite Genres -->
+      <div v-if="topGenres.length > 0" class="bg-white border border-slate-100 rounded-xl p-4 mb-5">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Favourite Genres</p>
+        <div class="flex flex-wrap gap-2">
+          <div v-for="(g, i) in topGenres" :key="g.genre"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
+            :class="i===0 ? 'bg-primary-100 text-primary-800' : i===1 ? 'bg-violet-100 text-violet-800' : 'bg-slate-100 text-slate-700'">
+            <span class="font-bold opacity-50">#{{ i + 1 }}</span>
+            {{ g.label }}
+            <span class="opacity-60 font-normal">({{ g.count }})</span>
+          </div>
+        </div>
+      </div>
       <!-- Tabs -->
       <div class="flex gap-1 border-b border-slate-100 mb-5">
         <button v-for="tab in tabs" :key="tab.id"
@@ -269,6 +282,35 @@ const avgRating = computed(() => {
   return (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
 })
 
+const topGenres = computed(() => {
+  const genreCount = {}
+  for (const [bookId] of userStore.ratedBooks) {
+    const book = bookTitles.value[bookId]
+    if (book && book.genre) {
+      genreCount[book.genre] = (genreCount[book.genre] || 0) + 1
+    }
+  }
+  const labels = {
+    'fiction':                                       'Fiction',
+    'non-fiction':                                   'Non-Fiction',
+    'romance':                                       'Romance',
+    'fantasy, paranormal':                           'Fantasy',
+    'mystery, thriller, crime':                      'Mystery',
+    'history, historical fiction, biography':        'History',
+    'children':                                      'Children',
+    'comics, graphic':                               'Comics',
+    'young-adult':                                   'Young Adult',
+    'poetry':                                        'Poetry',
+    'science, technology, engineering, mathematics': 'STEM',
+  }
+  return Object.entries(genreCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([genre, count]) => ({
+      genre, count,
+      label: labels[genre] || genre,
+    }))
+})
 function actionIcon(type) {
   const map = {
     view: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
