@@ -109,8 +109,18 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function rateBook(bookId, rating) {
+    if (!isLoggedIn.value) return
     ratedBooks.value.set(bookId, rating)
     localStorage.setItem('bookrs_ratings', JSON.stringify([...ratedBooks.value.entries()]))
+    // Save to interactions table (used by ALS + SBERT)
+    try {
+      await fetch(`http://localhost:8000/api/v1/users/${userId.value}/ratings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: bookId, rating: rating, is_reviewed: 0 })
+      })
+    } catch (e) { console.error('Failed to save rating to DB:', e) }
+    // Also log to user_actions (activity tab)
     await logAction(bookId, 'rating', rating)
   }
 

@@ -283,8 +283,15 @@ class BookRecommender:
             mn, mx = x.min(), x.max()
             return (x - mn) / (mx - mn + 1e-9)
 
-        hybrid = settings.ALPHA * norm(content_scores) + \
-                 (1 - settings.ALPHA) * norm(cf_scores)
+        # Dynamic alpha: new users need more SBERT until ALS is reliable
+        if is_ucsd_user:
+            alpha = settings.ALPHA  # 0.1 — trust ALS for trained users
+        elif n_rated >= 20:
+            alpha = 0.3  # more ALS as ratings accumulate
+        else:
+            alpha = 0.7  # trust SBERT more for sparse new users
+        hybrid = alpha * norm(content_scores) + \
+                 (1 - alpha) * norm(cf_scores)
 
         # Exclude seen books
         for bid in exclude:
