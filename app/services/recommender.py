@@ -215,6 +215,9 @@ class BookRecommender:
         user_id: str,
         n: int = 10,
         rated_book_ids: Optional[list] = None,
+        fav_book_ids: Optional[list] = None,
+        clicked_book_ids: Optional[list] = None,
+        viewed_book_ids: Optional[list] = None,
         exclude_book_ids: Optional[list] = None
     ) -> tuple[list[dict], str]:
         """
@@ -227,7 +230,10 @@ class BookRecommender:
         if not self.is_ready:
             return self._get_popular(n), "popular"
 
-        rated_books = rated_book_ids or []
+        rated_books  = rated_book_ids   or []
+        fav_books    = fav_book_ids     or []
+        clicked_books = clicked_book_ids or []
+        viewed_books = viewed_book_ids  or []
         exclude = set(exclude_book_ids or []) | set(rated_books)
         n_books = len(self.books_df)
 
@@ -236,6 +242,8 @@ class BookRecommender:
 
         # ── Stage 2: Check local ratings count ───────────────
         n_rated = len(rated_books)
+        # All implicit signals combined (for content profile)
+        all_implicit = list(set(fav_books + clicked_books + viewed_books) - set(rated_books))
 
         # ── Cold start: 0 ratings, not UCSD user ─────────────
         if n_rated == 0 and not is_ucsd_user:
@@ -244,7 +252,9 @@ class BookRecommender:
 
         # ── Content-based: 1-4 ratings, not UCSD user ────────
         if n_rated < 5 and not is_ucsd_user:
-            recs = self._get_content_from_books(rated_books, n, exclude)
+            recs = self._get_weighted_content(
+                rated_books, fav_books, clicked_books, viewed_books, n, exclude
+            )
             return recs, "content"
 
         # ── Full Hybrid: 5+ ratings OR UCSD user ─────────────
@@ -263,17 +273,35 @@ class BookRecommender:
             else:
                 cf_scores = np.zeros(n_books, dtype=np.float32)
 
-        # Content score from rated books
-        if rated_books:
-            valid_idxs = [self.book2idx[b] for b in rated_books if b in self.book2idx]
-            if valid_idxs:
-                profile = self.embeddings[valid_idxs].mean(axis=0)
-                content_scores = profile @ self.embeddings.T
-            else:
-                content_scores = np.zeros(n_books, dtype=np.float32)
+        # Weighted content profile using all signals
+        # Weights: rating(1+r) > favourite(5) > search_click(1.5) > view(0.5)
+        weighted_vecs = []
+        weighted_wts  = []
+        for bid in rated_books:
+            if bid in self.book2idx:
+                r = 3.0  # default weight if rating unknown
+                weighted_vecs.append(self.embeddings[self.book2idx[bid]])
+                weighted_wts.append(1.0 + r)
+        for bid in fav_books:
+            if bid in self.book2idx and bid not in set(rated_books):
+                weighted_vecs.append(self.embeddings[self.book2idx[bid]])
+                weighted_wts.append(5.0)
+        for bid in clicked_books:
+            if bid in self.book2idx and bid not in set(rated_books) | set(fav_books):
+                weighted_vecs.append(self.embeddings[self.book2idx[bid]])
+                weighted_wts.append(1.5)
+        for bid in viewed_books:
+            if bid in self.book2idx and bid not in set(rated_books) | set(fav_books) | set(clicked_books):
+                weighted_vecs.append(self.embeddings[self.book2idx[bid]])
+                weighted_wts.append(0.5)
+
+        if weighted_vecs:
+            vecs = np.array(weighted_vecs)
+            wts  = np.array(weighted_wts, dtype=np.float32)
+            wts  = wts / wts.sum()
+            profile = (vecs * wts[:, None]).sum(axis=0)
+            content_scores = profile @ self.embeddings.T
         elif is_ucsd_user:
-            # Use ALS factors as proxy for content profile
-            u_idx = self.user2idx[user_id]
             content_scores = np.zeros(n_books, dtype=np.float32)
         else:
             content_scores = np.zeros(n_books, dtype=np.float32)
@@ -301,6 +329,48 @@ class BookRecommender:
         top_idxs = np.argsort(hybrid)[-n:][::-1]
         recs = self._idxs_to_books(top_idxs, hybrid, method)
         return recs, method
+
+    def _get_weighted_content(self, rated_books, fav_books, clicked_books,
+                               viewed_books, n, exclude) -> list[dict]:
+        """Content-based recs using weighted signals from all user actions."""
+        # Build weighted book list
+        # Weights: rating(4.0) > favourite(5.0) > search_click(1.5) > view(0.5)
+        seen = set()
+        weighted_ids = []
+
+        for bid in rated_books:
+            if bid not in seen and bid in self.book2idx:
+                weighted_ids.extend([bid] * 4)  # weight 4
+                seen.add(bid)
+        for bid in fav_books:
+            if bid not in seen and bid in self.book2idx:
+                weighted_ids.extend([bid] * 5)  # weight 5
+                seen.add(bid)
+        for bid in clicked_books:
+            if bid not in seen and bid in self.book2idx:
+                weighted_ids.extend([bid, bid])  # weight 1.5 ≈ 2
+                seen.add(bid)
+        for bid in viewed_books:
+            if bid not in seen and bid in self.book2idx:
+                weighted_ids.append(bid)  # weight 0.5 ≈ 1
+                seen.add(bid)
+
+        if not weighted_ids:
+            return self._get_popular(n)
+
+        # Compute weighted mean embedding
+        idxs = [self.book2idx[b] for b in weighted_ids]
+        profile = self.embeddings[idxs].mean(axis=0)
+        scores = profile @ self.embeddings.T
+
+        # Exclude already seen books
+        for bid in exclude:
+            if bid in self.book2idx:
+                scores[self.book2idx[bid]] = -1
+
+        # Build source info for filtering
+        all_source_ids = list(set(rated_books + fav_books + clicked_books + viewed_books))
+        return self._get_content_from_books(all_source_ids, n, exclude)
 
     def _get_content_from_books(self, book_ids: list, n: int, exclude: set) -> list[dict]:
         """Content-based recommendations from a list of book IDs with proper filtering."""

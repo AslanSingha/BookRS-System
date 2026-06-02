@@ -15,9 +15,15 @@ export const booksApi = {
 }
 
 export const recommendApi = {
-  getHybrid: (userId, n = 10, ratedBooks = '') =>
+  getHybrid: (userId, n = 10, ratedBooks = '', favBooks = '', clickedBooks = '', viewedBooks = '') =>
     api.get(`/recommendations/hybrid/${userId}`, {
-      params: { n, rated_books: ratedBooks || undefined }
+      params: {
+        n,
+        rated_books:   ratedBooks   || undefined,
+        fav_books:     favBooks     || undefined,
+        clicked_books: clickedBooks || undefined,
+        viewed_books:  viewedBooks  || undefined,
+      }
     }),
   getSimilar: (bookId, n = 10) =>
     api.get(`/recommendations/similar/${bookId}`, { params: { n } }),

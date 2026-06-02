@@ -79,7 +79,7 @@
         </p>
       </div>
 
-      <BookGrid :books="currentResults" :is-loading="isLoading" />
+      <BookGrid :books="currentResults" :is-loading="isLoading" :onCardClick="handleSearchClick" />
     </div>
 
     <!-- Empty state -->
@@ -108,6 +108,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
 import { useBookStore } from '../stores/books'
 import { useUserStore } from '../stores/user'
 import { searchApi } from '../services/api'
@@ -117,6 +118,11 @@ const store = useBookStore()
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+
+async function handleSearchClick(bookId) {
+  await userStore.logSearchClick(bookId)
+}
 const query = ref('')
 const lastQuery = ref('')
 const activeTab = ref('semantic')

@@ -24,9 +24,14 @@ export const useBookStore = defineStore('books', () => {
         return
       }
 
-      const userId = userStore.userId
-      const ratedBooks = [...userStore.ratedBooks.keys()].join(',')
-      const res = await recommendApi.getHybrid(userId, 10, ratedBooks)
+      const userId       = userStore.userId
+      const ratedBooks   = [...userStore.ratedBooks.keys()].join(',')
+      const favBooks     = [...userStore.favorites].join(',')
+      const clickedBooks = [...userStore.searchClicks].join(',')
+      const viewedBooks  = [...userStore.recentViews].join(',')
+      const res = await recommendApi.getHybrid(
+        userId, 10, ratedBooks, favBooks, clickedBooks, viewedBooks
+      )
       recommendations.value = res.data.recommendations
       recommendMethod.value = res.data.method
     } catch (e) {

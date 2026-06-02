@@ -28,7 +28,7 @@
     <!-- Books grid -->
     <div v-else
       class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
-      <BookCard v-for="book in books" :key="book.book_id" :book="book" />
+      <BookCard v-for="book in books" :key="book.book_id" :book="book" :onCardClick="onCardClick" />
     </div>
   </div>
 </template>
@@ -38,6 +38,7 @@ import BookCard from './BookCard.vue'
 
 defineProps({
   books: { type: Array, default: () => [] },
-  isLoading: { type: Boolean, default: false }
+  isLoading: { type: Boolean, default: false },
+  onCardClick: { type: Function, default: null }
 })
 </script>

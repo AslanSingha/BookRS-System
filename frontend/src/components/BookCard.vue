@@ -1,5 +1,5 @@
 <template>
-  <router-link :to="`/book/${book.book_id}`" class="book-card block group">
+  <router-link :to="`/book/${book.book_id}`" class="book-card block group" @click="handleClick">
 
     <!-- Cover -->
     <div class="relative overflow-hidden bg-slate-100 rounded-t-xl" style="aspect-ratio:2/3">
@@ -85,8 +85,15 @@
 import { ref, computed } from 'vue'
 
 const props = defineProps({
-  book: { type: Object, required: true }
+  book: { type: Object, required: true },
+  onCardClick: { type: Function, default: null }
 })
+
+function handleClick() {
+  if (props.onCardClick) {
+    props.onCardClick(props.book.book_id)
+  }
+}
 
 const imgError = ref(false)
 

@@ -17,13 +17,22 @@ def get_hybrid_recommendations(
     user_id: str,
     n: int = Query(10, ge=1, le=50),
     rated_books: Optional[str] = Query(None),
+    fav_books: Optional[str] = Query(None),
+    clicked_books: Optional[str] = Query(None),
+    viewed_books: Optional[str] = Query(None),
     exclude_books: Optional[str] = Query(None)
 ):
-    rated = rated_books.split(",") if rated_books else []
+    rated   = rated_books.split(",")   if rated_books   else []
+    favs    = fav_books.split(",")     if fav_books     else []
+    clicks  = clicked_books.split(",") if clicked_books else []
+    views   = viewed_books.split(",")  if viewed_books  else []
     exclude = exclude_books.split(",") if exclude_books else []
     recs, method = recommender.get_hybrid_recommendations(
         user_id=user_id, n=n,
         rated_book_ids=rated,
+        fav_book_ids=favs,
+        clicked_book_ids=clicks,
+        viewed_book_ids=views,
         exclude_book_ids=exclude
     )
     return RecommendationResponse(
