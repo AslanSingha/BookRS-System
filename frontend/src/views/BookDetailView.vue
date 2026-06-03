@@ -179,7 +179,6 @@ const showFullDesc = ref(false)
 const isValidUrl = computed(() => {
   const url = book.value?.image_url
   if (!url) return false
-  if (url.includes('nophoto')) return false
   return url.startsWith('http')
 })
 

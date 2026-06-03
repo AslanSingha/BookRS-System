@@ -112,8 +112,6 @@ const imgError = ref(false)
 const isValidUrl = computed(() => {
   const url = props.book.image_url
   if (!url) return false
-  if (url.includes('nophoto')) return false
-  if (url.includes('assets/nophoto')) return false
   return url.startsWith('http')
 })
 
