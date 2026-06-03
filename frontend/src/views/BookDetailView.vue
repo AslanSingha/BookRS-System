@@ -21,10 +21,18 @@
               :src="book.image_url" :alt="book.title"
               class="w-full h-full object-cover"
               @error="imgError = true" />
-            <div v-else class="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-              <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-              </svg>
+            <div v-else
+              class="w-full h-full flex flex-col items-center justify-center p-6 relative overflow-hidden"
+              :style="placeholderStyle">
+              <div class="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-30" :style="{ background: placeholderAccent }"></div>
+              <div class="absolute -bottom-6 -left-4 w-24 h-24 rounded-full opacity-20" :style="{ background: placeholderAccent }"></div>
+              <div class="w-14 h-14 rounded-full flex items-center justify-center mb-3 z-10 flex-shrink-0"
+                :style="{ background: placeholderDark }">
+                <span class="text-2xl font-semibold" :style="{ color: placeholderLight }">{{ bookInitial }}</span>
+              </div>
+              <p class="text-sm font-medium text-center z-10 line-clamp-3 leading-snug" :style="{ color: placeholderDark }">
+                {{ book.title }}
+              </p>
             </div>
           </div>
         </div>
@@ -172,6 +180,26 @@ const bookStore = useBookStore()
 const book = ref(null)
 const similar = ref([])
 const imgError = ref(false)
+
+const PALETTES = [
+  { bg: '#E6F1FB', accent: '#B5D4F4', dark: '#185FA5', light: '#E6F1FB' },
+  { bg: '#E1F5EE', accent: '#9FE1CB', dark: '#0F6E56', light: '#E1F5EE' },
+  { bg: '#EEEDFE', accent: '#CECBF6', dark: '#3C3489', light: '#EEEDFE' },
+  { bg: '#FAEEDA', accent: '#FAC775', dark: '#854F0B', light: '#FAEEDA' },
+  { bg: '#FBEAF0', accent: '#F4C0D1', dark: '#72243E', light: '#FBEAF0' },
+  { bg: '#FAECE7', accent: '#F5C4B3', dark: '#993C1D', light: '#FAECE7' },
+  { bg: '#EAF3DE', accent: '#C0DD97', dark: '#3B6D11', light: '#EAF3DE' },
+  { bg: '#F1EFE8', accent: '#D3D1C7', dark: '#444441', light: '#F1EFE8' },
+]
+const bookInitial = computed(() => (book.value?.title || '?').trim()[0].toUpperCase())
+const palette = computed(() => {
+  const code = (book.value?.title || '').charCodeAt(0) || 0
+  return PALETTES[code % PALETTES.length]
+})
+const placeholderStyle  = computed(() => ({ background: palette.value.bg }))
+const placeholderAccent = computed(() => palette.value.accent)
+const placeholderDark   = computed(() => palette.value.dark)
+const placeholderLight  = computed(() => palette.value.light)
 const loadingSimilar = ref(false)
 const loading = ref(true)
 const showFullDesc = ref(false)
@@ -179,6 +207,7 @@ const showFullDesc = ref(false)
 const isValidUrl = computed(() => {
   const url = book.value?.image_url
   if (!url) return false
+  if (url.includes('nophoto')) return false
   return url.startsWith('http')
 })
 
