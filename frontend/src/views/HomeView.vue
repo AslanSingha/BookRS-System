@@ -73,7 +73,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.trending.slice(0, 10)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.trending.slice(0, 10)" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
       </section>
 
       <!-- Most Popular -->
@@ -93,7 +93,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.popular.slice(0, 10)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.popular.slice(0, 10)" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
       </section>
 
       <!-- Sign in CTA -->
@@ -186,7 +186,7 @@
             Refresh
           </button>
         </div>
-        <BookGrid :books="store.recommendations" :is-loading="store.isLoading" />
+        <BookGrid :books="store.recommendations" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
       </section>
 
       <!-- Trending -->
@@ -206,7 +206,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.trending.slice(0, 10)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.trending.slice(0, 10)" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
       </section>
 
       <!-- Popular -->
@@ -226,7 +226,7 @@
             </svg>
           </router-link>
         </div>
-        <BookGrid :books="store.popular.slice(0, 10)" :is-loading="store.isLoading" />
+        <BookGrid :books="store.popular.slice(0, 10)" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
       </section>
 
     </template>
@@ -241,6 +241,10 @@ import BookGrid from '../components/BookGrid.vue'
 
 const store = useBookStore()
 const userStore = useUserStore()
+
+async function handleRecClick(bookId) {
+  await userStore.logSearchClick(bookId)
+}
 
 const actualMethod = computed(() => {
   if (!userStore.isLoggedIn) return 'popular'
