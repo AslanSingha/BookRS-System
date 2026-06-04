@@ -151,6 +151,7 @@ const currentResults = computed(() =>
 async function handleSearch() {
   if (!query.value.trim()) return
   lastQuery.value = query.value
+  userStore.setLastQuery(query.value.trim())
   router.replace({ name: 'Search', query: { q: query.value } })
   isLoading.value = true
   try {

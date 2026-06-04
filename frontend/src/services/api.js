@@ -31,6 +31,12 @@ export const recommendApi = {
     api.get('/recommendations/popular', { params: { n, genre } }),
   getTrending: (n = 10) =>
     api.get('/recommendations/trending', { params: { n } }),
+  getBecauseSearched: (query, n = 10) =>
+    api.get('/recommendations/because-searched', { params: { query, n } }),
+  getBecauseRated: (bookId, n = 10) =>
+    api.get(`/recommendations/because-rated/${bookId}`, { params: { n } }),
+  getByGenre: (genre, n = 10) =>
+    api.get('/recommendations/by-genre', { params: { genre, n } }),
 }
 
 export const searchApi = {

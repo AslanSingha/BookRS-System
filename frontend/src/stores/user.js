@@ -7,6 +7,7 @@ export const useUserStore = defineStore('user', () => {
   const favorites = ref(new Set(JSON.parse(localStorage.getItem('bookrs_favorites') || '[]')))
   const ratedBooks = ref(new Map(JSON.parse(localStorage.getItem('bookrs_ratings') || '[]')))
   const searchClicks = ref(new Set(JSON.parse(localStorage.getItem('bookrs_clicks') || '[]')))
+  const lastQuery = ref(localStorage.getItem('bookrs_last_query') || '')
   const recentViews = ref(new Set(JSON.parse(localStorage.getItem('bookrs_views') || '[]')))
   const isLoggedIn = ref(!!userId.value)
 
@@ -72,6 +73,11 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  function setLastQuery(q) {
+    lastQuery.value = q
+    localStorage.setItem('bookrs_last_query', q)
+  }
+
   function logout() {
     userId.value = ''
     isLoggedIn.value = false
@@ -83,6 +89,8 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('bookrs_favorites')
     localStorage.removeItem('bookrs_ratings')
     localStorage.removeItem('bookrs_clicks')
+    localStorage.removeItem('bookrs_last_query')
+    lastQuery.value = ''
     localStorage.removeItem('bookrs_views')
   }
 
@@ -177,7 +185,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     userId, isLoggedIn, favorites, ratedBooks,
     login, logout, logAction, toggleFavorite, rateBook, deleteRating,
-    logView, logSearchClick, searchClicks, recentViews,
+    logView, logSearchClick, searchClicks, recentViews, lastQuery, setLastQuery,
     loadHistoryFromDB, initializeSession
   }
 })
