@@ -8,10 +8,10 @@
         <div class="absolute inset-0 bg-gradient-to-br from-primary-50 to-white pointer-events-none"></div>
         <div class="relative">
           <div class="flex flex-wrap items-center gap-2 mb-5">
-            <div class="inline-flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-semibold px-3 py-1.5 rounded-full">⭐ 883,468 Unique Books</div>
-            <div class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-full">🤖 ALS Collaborative Filtering</div>
-            <div class="inline-flex items-center gap-1.5 bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full">⚡ SBERT Semantic Embeddings</div>
-            <div class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold px-3 py-1.5 rounded-full">📚 11 Genres · 666K Users</div>
+            <div class="inline-flex items-center gap-1.5 bg-primary-50 text-primary-700 text-xs font-semibold px-3 py-1.5 rounded-full">883,468 Unique Books</div>
+            <div class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-full">ALS Collaborative Filtering</div>
+            <div class="inline-flex items-center gap-1.5 bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full">SBERT Semantic Embeddings</div>
+            <div class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold px-3 py-1.5 rounded-full">11 Genres · 666K Users</div>
           </div>
           <h1 class="text-3xl font-bold text-slate-900 mb-2 tracking-tight">Discover your next great read.</h1>
           <p class="text-slate-500 mb-6 max-w-lg">BookRS searches 883,468 unique books using ALS collaborative filtering and SBERT semantic embeddings — personalised to your taste.</p>
@@ -49,7 +49,7 @@
       </section>
     </template>
 
-    <!-- LOGGED IN — Netflix-style personalised homepage -->
+    <!-- LOGGED IN -->
     <template v-else>
 
       <!-- Welcome bar -->
@@ -71,7 +71,7 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-semibold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">🔍 Search Influence</span>
+              <span class="text-xs font-semibold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Search Influence</span>
             </div>
             <h2 class="text-xl font-bold text-slate-900">Because you searched "<span class="text-primary-600">{{ store.lastSearchQuery }}</span>"</h2>
             <p class="text-sm text-slate-500 mt-0.5">Books matching your recent search interest</p>
@@ -85,7 +85,7 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">⭐ Content Based</span>
+              <span class="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Content Based</span>
             </div>
             <h2 class="text-xl font-bold text-slate-900">
               Because you rated
@@ -104,7 +104,7 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-semibold bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">🤖 AI Hybrid</span>
+              <span class="text-xs font-semibold bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">Hybrid AI</span>
             </div>
             <h2 class="text-xl font-bold text-slate-900">Top Picks For You</h2>
             <p class="text-sm text-slate-500 mt-0.5">SBERT + ALS collaborative filtering combined</p>
@@ -113,12 +113,12 @@
         <BookGrid :books="store.recommendations" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
       </section>
 
-      <!-- SECTION 4: Readers like you enjoyed (pure CF) -->
+      <!-- SECTION 4: Readers like you enjoyed -->
       <section v-if="store.collaborativePicks.length > 0" class="mb-10">
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">👥 Collaborative</span>
+              <span class="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Collaborative</span>
             </div>
             <h2 class="text-xl font-bold text-slate-900">Readers Like You Also Enjoyed</h2>
             <p class="text-sm text-slate-500 mt-0.5">Based on users with similar reading taste</p>
@@ -132,7 +132,7 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">📚 Genre Pick</span>
+              <span class="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Genre Pick</span>
             </div>
             <h2 class="text-xl font-bold text-slate-900">
               Popular in
@@ -144,12 +144,12 @@
         <BookGrid :books="store.genrePopular" :is-loading="sectionsLoading" :onCardClick="handleRecClick" />
       </section>
 
-      <!-- SECTION 6: Trending this week -->
+      <!-- SECTION 6: Trending -->
       <section class="mb-10">
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-semibold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">🔥 Trending</span>
+              <span class="text-xs font-semibold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">Trending</span>
             </div>
             <h2 class="text-xl font-bold text-slate-900">Trending This Week</h2>
             <p class="text-sm text-slate-500 mt-0.5">Most popular books across all readers</p>
@@ -182,9 +182,9 @@ const actualMethod = computed(() => {
 })
 
 const methodLabel = computed(() => {
-  if (actualMethod.value === 'hybrid') return '🤖 Hybrid AI Active'
-  if (actualMethod.value === 'content') return '📖 Content-Based'
-  return '📊 Popularity-Based'
+  if (actualMethod.value === 'hybrid') return 'Hybrid AI Active'
+  if (actualMethod.value === 'content') return 'Content-Based'
+  return 'Popularity-Based'
 })
 
 async function handleRecClick(bookId) {
@@ -197,7 +197,6 @@ onMounted(async () => {
     store.fetchTrending(10),
     store.fetchPopular(10),
   ])
-  // Load personalised sections after main recs
   if (userStore.isLoggedIn) {
     sectionsLoading.value = true
     try {
