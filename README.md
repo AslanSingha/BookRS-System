@@ -256,6 +256,7 @@ BookRS/
 2. Catalogue entity resolution on UCSD Book Graph (−28.9% duplicates)
 3. STEM genre extraction for academic library use
 4. Extended confidence weighting: c(u,i) = 1 + 2·r(u,i) + 3·δ(u,i)
+5. Deployable full-stack hybrid system — complete production-grade implementation with 17 API endpoints, all responding<200ms, publicly available on GitHub
 
 ---
 
