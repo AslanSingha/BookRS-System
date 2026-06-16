@@ -11,7 +11,7 @@
 
 ## Overview
 
-BookRS is the implementation component of a Master's thesis at the **Institute of Technology of Cambodia (ITC)**, supervised by M. SOK Kimheng. It is designed as a real, deployable product following industry-standard recommendation architecture — comparable to how Netflix, Spotify, and Amazon approach recommendations, scaled to academic hardware.
+BookRS is the implementation component of an Engineering thesis at the **Institute of Technology of Cambodia (ITC)**, supervised by M. SOK Kimheng. It is designed as a real, deployable product following industry-standard recommendation architecture — comparable to how Netflix, Spotify, and Amazon approach recommendations, scaled to academic hardware.
 
 ### Key Results
 
@@ -247,8 +247,8 @@ BookRS/
 
 ## Thesis
 
-> **RIN SINGH** (2025). *AI-Powered Book Recommendation System (BookRS)*.
-> Master's Thesis, Institute of Technology of Cambodia.
+> **RIN SINGH** (2026). *AI-Powered Book Recommendation System (BookRS)*.
+> Engineering Thesis, Institute of Technology of Cambodia.
 > Supervised by M. SOK Kimheng. Defense: July 8, 2026.
 
 **Four original contributions:**
@@ -274,6 +274,6 @@ Model artefacts are excluded from version control — regenerate with the data p
 ---
 
 <div align="center">
-  <strong>BookRS</strong> · Institute of Technology of Cambodia · 2025<br>
+  <strong>BookRS</strong> · Institute of Technology of Cambodia · 2026<br>
   RIN SINGH · Supervised by M. SOK Kimheng
 </div>
