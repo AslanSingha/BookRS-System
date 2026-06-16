@@ -1,6 +1,6 @@
 # BookRS — AI-Powered Book Recommendation System
 
-> A production-grade hybrid recommendation system combining SBERT semantic embeddings and ALS collaborative filtering across 883,468 unique books.
+> A deployable research-grade hybrid recommendation system combining SBERT semantic embeddings and ALS collaborative filtering across 883,468 unique books.
 
 [![Python](https://img.shields.io/badge/Python-3.12.3-blue?logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.135-green?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -11,7 +11,7 @@
 
 ## Overview
 
-BookRS is the implementation component of an Engineering thesis at the **Institute of Technology of Cambodia (ITC)**, supervised by M. SOK Kimheng. It is designed as a real, deployable product following industry-standard recommendation architecture — comparable to how Netflix, Spotify, and Amazon approach recommendations, scaled to academic hardware.
+BookRS is the implementation component of an Engineering thesis at the **Institute of Technology of Cambodia (ITC)**, supervised by M. SOK Kimheng. It is designed as a deployable research-grade system following industry-standard recommendation architecture — comparable to how Netflix, Spotify, and Amazon approach recommendations, scaled to academic hardware.
 
 ### Key Results
 
@@ -28,59 +28,40 @@ BookRS is the implementation component of an Engineering thesis at the **Institu
 ---
 
 ## Architecture
+
+```
 Browser (Vue.js · Port 5173)
-
-│  HTTP
-
-▼
-
+    │  HTTP
+    ▼
 FastAPI Backend (Port 8000)
-
-│  in-process function call
-
-▼
-
+    │  in-process function call
+    ▼
 Recommender Service
-
-├── SBERT taste profile builder
-
-├── ALS collaborative scoring
-
-├── Hybrid Ranker
-
-│     score = α·norm(s_sem) + (1−α)·norm(s_cf)
-
-└── Cold-Start Manager (4 stages)
-
-│
-
-├── models/embeddings.npy        (883,468 × 384 · ~1.9 GB)
-
-├── models/als_user_factors.npy  (666,238 × 128)
-
-└── models/als_item_factors.npy  (883,468 × 128)
-
-│
-
-▼
-
+    ├── SBERT taste profile builder
+    ├── ALS collaborative scoring
+    ├── Hybrid Ranker
+    │     score = α·norm(s_sem) + (1−α)·norm(s_cf)
+    └── Cold-Start Manager (4 stages)
+    │
+    ├── models/embeddings.npy        (883,468 × 384 · ~1.9 GB)
+    ├── models/als_user_factors.npy  (666,238 × 128)
+    └── models/als_item_factors.npy  (883,468 × 128)
+    │
+    ▼
 PostgreSQL (Port 5432)
-
-├── books          (883,468 rows)
-
-├── users
-
-├── interactions   (explicit ratings)
-
-└── user_actions   (implicit signals: view/click/fav)
+    ├── books          (883,468 rows)
+    ├── users
+    ├── interactions   (explicit ratings)
+    └── user_actions   (implicit signals: view/click/fav)
+```
 
 ---
 
 ## Features
 
 - **Semantic search** — SBERT query encoding against 883K book embeddings
-- **Personalised search** — hybrid SBERT + ALS results
-- **Netflix-style homepage** — six personalised sections per logged-in user
+- **Personalized search** — hybrid SBERT + ALS results
+- **Netflix-style homepage** — six personalized sections per logged-in user
 - **Four-stage cold-start** — popularity → content → folding-in → direct ALS
 - **Dynamic alpha weighting** — α adapts to user interaction density
 - **ALS folding-in** — new-user vector computed in real-time (<1ms)
@@ -92,7 +73,7 @@ PostgreSQL (Port 5432)
 ## Requirements
 
 **Hardware:**
-- RAM: 32 GB recommended (model artefacts ~4 GB loaded)
+- RAM: 32 GB recommended (model artifacts ~4 GB loaded)
 - GPU: NVIDIA with CUDA (recommended for training)
 
 **Software:**
@@ -171,53 +152,33 @@ bash start_bookrs.sh
 ---
 
 ## Project Structure
+
+```
 BookRS/
-
 ├── app/
-
 │   ├── main.py                    # Entry point
-
 │   ├── api/routes/
-
 │   │   ├── recommendations.py     # 17 recommendation endpoints
-
-│   │   ├── search.py              # Semantic + personalised search
-
+│   │   ├── search.py              # Semantic + personalized search
 │   │   ├── books.py
-
 │   │   ├── users.py
-
 │   │   └── actions.py
-
 │   ├── services/
-
 │   │   └── recommender.py         # Core ML engine (~800 lines)
-
 │   └── core/
-
 │       ├── config.py
-
 │       └── database.py
-
 ├── frontend/                      # Vue.js 3 + Vite + Tailwind CSS 3
-
 │   └── src/{views,stores,components,services}/
-
-├── models/                        # Pre-computed artefacts (gitignored)
-
+├── models/                        # Pre-computed artifacts (gitignored)
 │   ├── embeddings.npy             # ~1.9 GB
-
 │   ├── als_user_factors.npy
-
 │   └── als_item_factors.npy
-
 ├── scripts/                       # Offline data preparation
-
 ├── experiments/                   # Evaluation scripts
-
 ├── requirements.txt
-
 └── start_bookrs.sh
+```
 
 ---
 
@@ -251,12 +212,13 @@ BookRS/
 > Engineering Thesis, Institute of Technology of Cambodia.
 > Supervised by M. SOK Kimheng. Defense: July 8, 2026.
 
-**Four original contributions:**
-1. Multi-scale evaluation methodology (10K and 446K users)
-2. Catalogue entity resolution on UCSD Book Graph (−28.9% duplicates)
-3. STEM genre extraction for academic library use
-4. Extended confidence weighting: c(u,i) = 1 + 2·r(u,i) + 3·δ(u,i)
-5. Deployable full-stack hybrid system — complete production-grade implementation with 17 API endpoints, all responding<200ms, publicly available on GitHub
+**Five original contributions:**
+
+1. Multi-scale evaluation methodology using both 10K active users and 446K full-scale users.
+2. Catalog entity resolution on the UCSD Book Graph, removing 360,789 duplicate editions (−28.9%).
+3. STEM genre extraction for academic library recommendation, identifying 4,185 STEM books.
+4. Extended confidence weighting formula: `c(u,i) = 1 + 2·r(u,i) + 3·δ(u,i)`.
+5. A complete deployable full-stack hybrid recommendation system with 17 API endpoints, large-scale model artifacts, and recommendation responses in under 200 ms.
 
 ---
 
@@ -270,7 +232,7 @@ pg_dump -U bookrs -W -h 127.0.0.1 bookrs_db > bookrs_backup.sql
 psql -U bookrs -W -h 127.0.0.1 bookrs_db < bookrs_backup.sql
 ```
 
-Model artefacts are excluded from version control — regenerate with the data preparation scripts or restore from backup.
+Model artifacts are excluded from version control — regenerate with the data preparation scripts or restore from backup.
 
 ---
 
