@@ -29,6 +29,12 @@ async def get_db():
             await session.close()
 
 async def init_db():
+    # Import all models so Base.metadata knows about every table
+    from app.models.user import User
+    from app.models.interaction import Interaction
+    from app.models.user_action import UserAction
+    from app.models.book import Book
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("✅ Database tables created!")

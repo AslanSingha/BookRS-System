@@ -122,7 +122,7 @@ function loadMore() {
 async function selectGenre(genre) {
   selectedGenre.value = genre
   currentPage.value = 1
-  await store.fetchPopular(genre, 100) // fetch 100 for load more
+  await store.fetchPopular(100, genre) // fetch 100 for load more
 }
 
 function selectSort(sort) {
@@ -130,5 +130,5 @@ function selectSort(sort) {
   currentPage.value = 1
 }
 
-onMounted(() => store.fetchPopular(null, 100))
+onMounted(() => store.fetchPopular(100, null))
 </script>

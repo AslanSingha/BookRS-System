@@ -42,43 +42,15 @@ class BookRecommender:
         self.books_df = pd.read_parquet(settings.books_path)
         logger.info(f"Loaded {len(self.books_df):,} books")
 
-        # ── Catalogue deduplication ──────────────────────────────
-        # Standard entity resolution: keep one canonical record
-        # per unique (title, author) pair — highest ratings_count wins.
-        # This mirrors Goodreads "Works" and Amazon "parent ASIN" patterns.
-        import re
+        # Books from PostgreSQL are already deduplicated by entity resolution.
+        # We preserve ORDER BY book_id so indices match embeddings.npy
+        # which was also encoded ORDER BY book_id.
+        logger.info(f"Catalogue loaded: {len(self.books_df):,} books (already deduplicated)")
 
-        def canonical_key(title, author):
-            """Normalise title+author into a deduplication key."""
-            t = str(title).lower().strip()
-            # Remove edition/volume/part markers
-            t = re.sub(r"\s*[\(\[].*?[\)\]]", "", t)   # remove (...)
-            t = re.sub(r",?\s*(part|vol|book|#)\s*[\d.]+.*$", "", t)
-            t = t.strip()
-            a = str(author).lower().split(",")[0].strip()
-            return f"{t}|||{a}"
+        # Store sequential indices — no reordering needed
+        self._dedup_indices = list(range(len(self.books_df)))
+        # (these are identity indices; reordering step becomes a no-op)
 
-        self.books_df["_canon_key"] = self.books_df.apply(
-            lambda r: canonical_key(r["title"], r["authors"]), axis=1
-        )
-        before = len(self.books_df)
-        self.books_df = (
-            self.books_df
-            .sort_values("ratings_count", ascending=False)
-            .drop_duplicates(subset="_canon_key", keep="first")
-            .drop(columns=["_canon_key"])
-        )
-        after = len(self.books_df)
-        logger.info(f"Catalogue deduplication: {before:,} → {after:,} unique works")
-
-        # IMPORTANT: filter embeddings to match deduplicated books_df
-        # embeddings rows correspond to original books_df row positions
-        # After dedup, books_df.index contains the ORIGINAL row positions
-        original_indices = self.books_df.index.tolist()
-        # Load full embeddings first if not loaded yet
-        # (embeddings loaded after this block, so store indices for later)
-        self._dedup_indices = original_indices
-        self.books_df = self.books_df.reset_index(drop=True)
 
         # Load SBERT model
         self.model = SentenceTransformer(settings.EMBEDDING_MODEL)
@@ -101,13 +73,22 @@ class BookRecommender:
             logger.info("Embeddings saved!")
 
         # Reorder embeddings to match deduplicated books_df
+        # embeddings.npy was encoded ORDER BY book_id
+        # parquet is also ORDER BY book_id
+        # so _dedup_indices correctly maps parquet rows → embedding rows
         if hasattr(self, '_dedup_indices') and self._dedup_indices is not None:
             logger.info(f"Reordering embeddings to match {len(self._dedup_indices):,} deduplicated books...")
             self.embeddings = self.embeddings[self._dedup_indices]
             logger.info(f"Embeddings reordered: {self.embeddings.shape}")
-            # Verify HP embedding is correct
-            logger.info(f"Embedding[1] first 3 vals: {self.embeddings[1][:3]}")
             del self._dedup_indices
+        # Truncate embeddings to match books_df size
+        # embeddings.npy has 1,244,257 rows (pre-entity-resolution)
+        # books_df has 883,468 rows (post-entity-resolution)
+        # We only need the first len(books_df) rows since
+        # books are in ORDER BY book_id in both parquet and embeddings
+        if len(self.embeddings) > len(self.books_df):
+            self.embeddings = self.embeddings[:len(self.books_df)]
+            logger.info(f"Embeddings truncated to {self.embeddings.shape}")
 
         # Build book index
         self.book2idx = {bid: i for i, bid in enumerate(self.books_df["book_id"])}
@@ -133,49 +114,29 @@ class BookRecommender:
         logger.info("BookRS recommender ready!")
 
     async def _train_als(self):
-        logger.info("Training ALS...")
-        interactions = pd.read_parquet(settings.interactions_path)
-        valid_books = set(self.books_df["book_id"])
-        interactions = interactions[interactions["book_id"].isin(valid_books)]
+        """Load pre-trained ALS factor matrices from .npy files."""
+        models_dir = settings.models_path
+        u_path   = models_dir / "als_user_factors.npy"
+        v_path   = models_dir / "als_item_factors.npy"
+        u2i_path = models_dir / "user2idx.npy"
 
-        user_ids = interactions["user_id"].unique()
-        self.user2idx = {u: i for i, u in enumerate(user_ids)}
-        n_users = len(user_ids)
-        n_books = len(self.books_df)
+        if u_path.exists() and v_path.exists():
+            logger.info("Loading pre-trained ALS factors...")
+            U = np.load(str(u_path))  # (666238 x 128)
+            V = np.load(str(v_path))  # (883468 x 128)
 
-        interactions["u_idx"] = interactions["user_id"].map(self.user2idx)
-        interactions["b_idx"] = interactions["book_id"].map(self.book2idx)
-        interactions = interactions.dropna(subset=["u_idx","b_idx"])
-        interactions["u_idx"] = interactions["u_idx"].astype(int)
-        interactions["b_idx"] = interactions["b_idx"].astype(int)
-        interactions = interactions[
-            (interactions["u_idx"] < n_users) &
-            (interactions["b_idx"] < n_books)
-        ]
+            # Load user2idx mapping
+            if u2i_path.exists():
+                self.user2idx = np.load(str(u2i_path), allow_pickle=True).item()
 
-        # Confidence weighting (Experiment 5: Config C)
-        confidence = (
-            1.0 +
-            interactions["rating"].astype(float) * 2.0 +
-            interactions["is_reviewed"].astype(float) * 3.0
-        ).values
-
-        train_matrix = sp.csr_matrix(
-            (confidence,
-             (interactions["u_idx"].values, interactions["b_idx"].values)),
-            shape=(n_users, n_books)
-        )
-
-        als = implicit.als.AlternatingLeastSquares(
-            factors=settings.ALS_FACTORS,
-            regularization=settings.ALS_REGULARIZATION,
-            iterations=settings.ALS_ITERATIONS,
-            use_gpu=False
-        )
-        als.fit(train_matrix.T.tocsr())
-        self.book_factors = als.user_factors   # (n_books, 128)
-        self.user_factors = als.item_factors   # (n_users, 128)
-        logger.info(f"ALS trained! Users: {n_users:,} Books: {n_books:,}")
+            # Convention: book_factors = V, user_factors = U
+            self.user_factors = U
+            self.book_factors  = V
+            logger.info(f"ALS loaded! user_factors: {U.shape}  book_factors: {V.shape}")
+        else:
+            logger.warning("Pre-trained ALS .npy files not found — CF disabled")
+            self.user_factors = None
+            self.book_factors  = None
 
 
     def _compute_user_vector(self, rated_book_ids: list, ratings: list) -> np.ndarray:

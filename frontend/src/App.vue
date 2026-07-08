@@ -189,11 +189,15 @@ function handleSearch() {
   }
 }
 
-function handleLogin() {
+async function handleLogin() {
   if (loginId.value.trim()) {
-    userStore.login(loginId.value.trim())
+    await userStore.login(loginId.value.trim())
     showLogin.value = false
     loginId.value = ''
+    // Force navigate to home to trigger re-fetch
+    if (router.currentRoute.value.path !== '/') {
+      router.push('/')
+    }
   }
 }
 </script>

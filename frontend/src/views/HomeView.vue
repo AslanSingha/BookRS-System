@@ -28,8 +28,7 @@
       <section class="mb-10">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h2 class="text-xl font-bold text-slate-900">Trending This Week</h2>
-            <p class="text-sm text-slate-500 mt-0.5">Most popular books right now</p>
+            <h2 class="text-xl font-bold text-slate-900">Trending Now</h2>
           </div>
           <router-link to="/trending" class="text-sm text-primary-600 hover:text-primary-700 font-medium">See all →</router-link>
         </div>
@@ -45,7 +44,7 @@
           </div>
           <router-link to="/popular" class="text-sm text-primary-600 hover:text-primary-700 font-medium">See all →</router-link>
         </div>
-        <BookGrid :books="store.popular.slice(0, 10)" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
+        <BookGrid :books="store.popular" :is-loading="store.isLoading" :onCardClick="handleRecClick" />
       </section>
     </template>
 
@@ -55,8 +54,12 @@
       <!-- Welcome bar -->
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h1 class="text-2xl font-bold text-slate-900">Welcome back, {{ userStore.userId }}</h1>
-          <p class="text-sm text-slate-500 mt-0.5">Your personalised reading feed</p>
+          <h1 class="text-2xl font-bold text-slate-900">
+            {{ userStore.ratedBooks.size > 0 ? 'Welcome back' : 'Welcome' }}, {{ userStore.userId }}
+          </h1>
+          <p class="text-sm text-slate-500 mt-0.5">
+            {{ userStore.ratedBooks.size === 0 ? 'Start rating books to personalise your feed' : 'Your personalised reading feed' }}
+          </p>
         </div>
         <div class="flex items-center gap-2">
           <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
@@ -66,21 +69,7 @@
         </div>
       </div>
 
-      <!-- SECTION 1: Because you searched X -->
-      <section v-if="store.becauseSearched.length > 0" class="mb-10">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-semibold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Search Influence</span>
-            </div>
-            <h2 class="text-xl font-bold text-slate-900">Because you searched "<span class="text-primary-600">{{ store.lastSearchQuery }}</span>"</h2>
-            <p class="text-sm text-slate-500 mt-0.5">Books matching your recent search interest</p>
-          </div>
-        </div>
-        <BookGrid :books="store.becauseSearched" :is-loading="sectionsLoading" :onCardClick="handleRecClick" />
-      </section>
-
-      <!-- SECTION 2: Because you rated [book] -->
+      <!-- SECTION 1: Because you rated [book] — TOP PRIORITY -->
       <section v-if="store.becauseRated.length > 0" class="mb-10">
         <div class="flex items-center justify-between mb-4">
           <div>
@@ -98,9 +87,24 @@
         </div>
         <BookGrid :books="store.becauseRated" :is-loading="sectionsLoading" :onCardClick="handleRecClick" />
       </section>
+      <!-- SECTION 2: Because you searched X -->
+      <section v-if="store.becauseSearched.length > 0" class="mb-10">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Search Influence</span>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900">Because you searched "<span class="text-primary-600">{{ store.lastSearchQuery }}</span>"</h2>
+            <p class="text-sm text-slate-500 mt-0.5">Books matching your recent search interest</p>
+          </div>
+        </div>
+        <BookGrid :books="store.becauseSearched" :is-loading="sectionsLoading" :onCardClick="handleRecClick" />
+      </section>
 
-      <!-- SECTION 3: Main hybrid recommendations -->
-      <section class="mb-10">
+      <!-- Section 2 moved to top -->
+
+      <!-- SECTION 3: Main hybrid recommendations — only show if user has ratings -->
+      <section v-if="userStore.ratedBooks.size > 0" class="mb-10">
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
@@ -128,7 +132,7 @@
       </section>
 
       <!-- SECTION 5: Popular in favourite genre -->
-      <section v-if="store.genrePopular.length > 0" class="mb-10">
+      <section v-if="store.genrePopular.length > 0 && userStore.ratedBooks.size > 0" class="mb-10">
         <div class="flex items-center justify-between mb-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
@@ -151,8 +155,7 @@
             <div class="flex items-center gap-2 mb-1">
               <span class="text-xs font-semibold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">Trending</span>
             </div>
-            <h2 class="text-xl font-bold text-slate-900">Trending This Week</h2>
-            <p class="text-sm text-slate-500 mt-0.5">Most popular books across all readers</p>
+            <h2 class="text-xl font-bold text-slate-900">Trending Now</h2>
           </div>
           <router-link to="/trending" class="text-sm text-primary-600 hover:text-primary-700 font-medium">See all →</router-link>
         </div>
@@ -165,7 +168,7 @@
 </template>
 
 <script setup>
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed, ref, watch } from 'vue'
 import { useBookStore } from '../stores/books'
 import { useUserStore } from '../stores/user'
 import BookGrid from '../components/BookGrid.vue'
@@ -191,19 +194,42 @@ async function handleRecClick(bookId) {
   await userStore.logSearchClick(bookId)
 }
 
-onMounted(async () => {
+async function loadAll() {
+  // Fetch base data first — do NOT clear before fetch
+  // to avoid empty flash
   await Promise.all([
     store.fetchRecommendations(),
     store.fetchTrending(10),
-    store.fetchPopular(10),
+    store.fetchPopular(10, null),
   ])
+
   if (userStore.isLoggedIn) {
     sectionsLoading.value = true
     try {
+      // Clear personalised sections BEFORE re-fetching them
+      store.becauseSearched    = []
+      store.becauseRated       = []
+      store.collaborativePicks = []
+      store.genrePopular       = []
       await store.fetchPersonalisedSections()
     } finally {
       sectionsLoading.value = false
     }
+  } else {
+    // Guest — clear personalised sections
+    store.becauseSearched    = []
+    store.becauseRated       = []
+    store.collaborativePicks = []
+    store.genrePopular       = []
   }
+}
+
+// Re-fetch whenever login state changes
+watch(() => userStore.isLoggedIn, async () => {
+  await loadAll()
+})
+
+onMounted(async () => {
+  await loadAll()
 })
 </script>

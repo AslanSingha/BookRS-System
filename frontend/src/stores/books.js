@@ -89,13 +89,20 @@ export const useBookStore = defineStore('books', () => {
       }
     }
 
-    // Section 3: Collaborative picks (ALS only — pure CF signal)
+    // Section 3: Collaborative picks — use similar books to top rated
+    // to make it different from Top Picks
     try {
-      const res = await recommendApi.getHybrid(
-        userId, 10,
-        ratedBooks.join(','), favBooks, clickedBooks, viewedBooks
-      )
-      collaborativePicks.value = res.data.recommendations
+      const ratedEntries = [...userStore.ratedBooks.entries()]
+      const topRated = ratedEntries.sort((a,b) => b[1]-a[1])[0]
+      if (topRated) {
+        const res = await recommendApi.getBecauseRated(topRated[0], 10)
+        // Filter out books already in recommendations
+        const recIds = new Set(recommendations.value.map(b => b.book_id))
+        collaborativePicks.value = (res.data.recommendations || [])
+          .filter(b => !recIds.has(b.book_id))
+      } else {
+        collaborativePicks.value = []
+      }
     } catch (e) { collaborativePicks.value = [] }
 
     // Section 4: Popular in favourite genre
@@ -114,27 +121,23 @@ export const useBookStore = defineStore('books', () => {
     }
   }
 
-  async function fetchPopular(genre = null) {
-    isLoading.value = true
+  async function fetchPopular(n = 10, genre = null) {
     try {
-      const res = await recommendApi.getPopular(30, genre)
-      popular.value = res.data.recommendations
+      const res = await recommendApi.getPopular(n, genre)
+      popular.value = res.data.recommendations || []
     } catch (e) {
       console.error('Failed to fetch popular:', e)
-    } finally {
-      isLoading.value = false
+      popular.value = []
     }
   }
 
-  async function fetchTrending(n = 30) {
-    isLoading.value = true
+  async function fetchTrending(n = 10) {
     try {
       const res = await recommendApi.getTrending(n)
-      trending.value = res.data.recommendations
+      trending.value = res.data.recommendations || []
     } catch (e) {
       console.error('Failed to fetch trending:', e)
-    } finally {
-      isLoading.value = false
+      trending.value = []
     }
   }
 

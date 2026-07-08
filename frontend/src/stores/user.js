@@ -85,13 +85,25 @@ export const useUserStore = defineStore('user', () => {
     ratedBooks.value = new Map()
     searchClicks.value = new Set()
     recentViews.value  = new Set()
+    lastQuery.value = ''
     localStorage.removeItem('bookrs_user_id')
     localStorage.removeItem('bookrs_favorites')
     localStorage.removeItem('bookrs_ratings')
     localStorage.removeItem('bookrs_clicks')
     localStorage.removeItem('bookrs_last_query')
-    lastQuery.value = ''
     localStorage.removeItem('bookrs_views')
+    // Clear book store cache
+    try {
+      const { useBookStore } = require('./books')
+      const bookStore = useBookStore()
+      bookStore.recommendations    = []
+      bookStore.becauseSearched    = []
+      bookStore.becauseRated       = []
+      bookStore.collaborativePicks = []
+      bookStore.genrePopular       = []
+      bookStore.trending           = []
+      bookStore.popular            = []
+    } catch (e) {}
   }
 
   async function logAction(bookId, actionType, value = 0) {
