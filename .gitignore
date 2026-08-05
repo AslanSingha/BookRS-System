@@ -17,7 +17,7 @@ experiments/results/**/*.pkl
 experiments/results/**/*.pkl.meta
 CornacExp-*.log
 .env
-models/
+/models/
 frontend/node_modules/
 frontend/dist/
 cuda-keyring_1.1-1_all.deb
