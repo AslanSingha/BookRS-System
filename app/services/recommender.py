@@ -90,8 +90,16 @@ class BookRecommender:
             self.embeddings = self.embeddings[:len(self.books_df)]
             logger.info(f"Embeddings truncated to {self.embeddings.shape}")
 
-        # Build book index
-        self.book2idx = {bid: i for i, bid in enumerate(self.books_df["book_id"])}
+        # Build book index — MUST use the saved mapping from encode_books.py
+        # because embeddings.npy was generated using ORDER BY book_id::bigint
+        # (numeric sort), NOT the string-sorted order of books_df["book_id"].
+        book2idx_path = settings.models_path / "book2idx_sbert.npy"
+        if book2idx_path.exists():
+            self.book2idx = np.load(str(book2idx_path), allow_pickle=True).item()
+            logger.info(f"Loaded book2idx_sbert.npy: {len(self.book2idx):,} entries")
+        else:
+            logger.warning("book2idx_sbert.npy not found — rebuilding from books_df (WARNING: may misalign with embeddings.npy!)")
+            self.book2idx = {bid: i for i, bid in enumerate(self.books_df["book_id"])}
         self.idx2book = {i: bid for bid, i in self.book2idx.items()}
 
         # Train ALS
