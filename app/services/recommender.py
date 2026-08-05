@@ -105,11 +105,17 @@ class BookRecommender:
         # Train ALS
         await self._train_als()
 
-        # Pre-build fast lookup arrays for similar books
-        self._titles_lower = self.books_df["title"].str.lower().str.strip().values
-        self._authors_lower = self.books_df["authors"].str.lower().str.split(",").str[0].str.strip().values
-        self._ratings_count = self.books_df["ratings_count"].values
-        logger.info("Fast lookup arrays built!")
+        # Pre-build fast lookup arrays for similar books — MUST be built
+        # in embeddings order (via idx2book), NOT books_df's row order,
+        # since callers index these arrays with embeddings-order indices
+        # (from argsort on embeddings/scores), not books_df row positions.
+        n_books = len(self.embeddings)
+        ordered_book_ids = [self.idx2book[i] for i in range(n_books)]
+        lookup_df = self.books_df.set_index("book_id").reindex(ordered_book_ids)
+        self._titles_lower = lookup_df["title"].fillna("").str.lower().str.strip().values
+        self._authors_lower = lookup_df["authors"].fillna("").str.lower().str.split(",").str[0].str.strip().values
+        self._ratings_count = lookup_df["ratings_count"].fillna(0).values
+        logger.info("Fast lookup arrays built (embeddings-order aligned)!")
 
         # GPU used only for SBERT encoding (already handled by sentence-transformers)
         # CPU is fast enough for similarity search (0.13s per query)
