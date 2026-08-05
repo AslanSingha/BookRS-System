@@ -6,7 +6,22 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s  %(levelname)s  %(message)s', datefmt='%H:%M:%S')
 log = logging.getLogger(__name__)
 
-DB_CONFIG = {'host': '127.0.0.1', 'port': 5432, 'database': 'bookrs_db', 'user': 'bookrs', 'password': 'bookrs123'}
+# DB_CONFIG is derived from the project's own DATABASE_URL (app/core/config.py,
+# overridable via .env) instead of being hardcoded, so this script targets
+# whichever database .env actually points to -- not always literally 'bookrs_db'.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from app.core.config import settings
+from sqlalchemy.engine.url import make_url
+_url = make_url(settings.DATABASE_URL)
+DB_CONFIG = {
+    'host':     _url.host,
+    'port':     _url.port,
+    'database': _url.database,
+    'user':     _url.username,
+    'password': _url.password,
+}
 
 def canonical_key(title: str, author: str) -> str:
     t = str(title).lower().strip()
