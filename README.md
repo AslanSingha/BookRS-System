@@ -43,9 +43,10 @@ Recommender Service
     │     score = α·norm(s_sem) + (1−α)·norm(s_cf)
     └── Cold-Start Manager (4 stages)
     │
-    ├── models/embeddings.npy        (883,468 × 384 · ~1.9 GB)
-    ├── models/als_user_factors.npy  (666,238 × 128)
-    └── models/als_item_factors.npy  (883,468 × 128)
+    ├── models/embeddings.npy         (883,468 x 384 - ~1.4 GB)
+    ├── models/book2idx_sbert.npy    (883,468 entries - REQUIRED, see below)
+    ├── models/als_user_factors.npy  (666,238 x 128)
+    └── models/als_item_factors.npy  (883,468 x 128)
     │
     ▼
 PostgreSQL (Port 5432)
@@ -120,18 +121,26 @@ cd frontend && npm install && cd ..
 
 ## Data Preparation
 
-Run once before starting the system. Total time: ~76 minutes on GPU.
+Run once before starting the system, **in this exact order**. Total time: ~90 minutes on GPU.
 
 ```bash
-# Step 1 — Load 883,468 books into PostgreSQL (~5 min)
+# Step 1 — Load raw books into PostgreSQL: 1,244,257 rows, pre-deduplication (~3 min)
 python scripts/load_books_to_db.py
 
-# Step 2 — Encode books with SBERT → embeddings.npy (~60 min)
+# Step 2 — Load interactions into PostgreSQL: 33,402,870 rows (~5-10 min)
+python scripts/load_interactions_to_db.py
+
+# Step 3 — Entity resolution: deduplicates 1,244,257 to 883,468 books, -28.9% (~1 min)
+python scripts/entity_resolution.py
+
+# Step 4 — Encode books with SBERT: embeddings.npy + book2idx_sbert.npy (~80 min)
 python scripts/encode_books.py
 
-# Step 3 — Train ALS model → als_*.npy (~15 min)
+# Step 5 — Train ALS model: als_user_factors.npy, als_item_factors.npy (~15 min)
 python scripts/train_als.py
 ```
+
+> **Do not skip Step 3.** Steps 1 and 2 alone leave PostgreSQL with the raw, pre-deduplication catalogue (1,244,257 books). `encode_books.py` in Step 4 reads directly from PostgreSQL, in book_id order -- it must run after entity resolution, or `embeddings.npy` will be generated against the wrong book count and silently misalign with everything downstream. See **Critical: Index Ordering** below.
 
 ---
 
@@ -170,8 +179,9 @@ BookRS/
 │       └── database.py
 ├── frontend/                      # Vue.js 3 + Vite + Tailwind CSS 3
 │   └── src/{views,stores,components,services}/
-├── models/                        # Pre-computed artifacts (gitignored)
-│   ├── embeddings.npy             # ~1.9 GB
+├── models/                        # Pre-computed artifacts (gitignored -- NOT the same as app/models/)
+│   ├── embeddings.npy             # ~1.4 GB
+│   ├── book2idx_sbert.npy         # REQUIRED -- see Critical: Index Ordering
 │   ├── als_user_factors.npy
 │   └── als_item_factors.npy
 ├── scripts/                       # Offline data preparation
@@ -179,6 +189,23 @@ BookRS/
 ├── requirements.txt
 └── start_bookrs.sh
 ```
+
+---
+
+## Critical: Index Ordering
+
+`embeddings.npy` and `book2idx_sbert.npy` are generated together by `scripts/encode_books.py`, which loads books from PostgreSQL with `ORDER BY book_id::bigint` -- a **numeric** sort (`'1', '2', '3', ... '10', '11'`).
+
+Any other place that loads books -- `books_df = pd.read_parquet(...)`, a fresh `SELECT * FROM books ORDER BY book_id`, or Python's default string sort on `book_id` -- produces a **different** order (`'1', '10', '100', '1000', ...`).
+
+These two orderings look similar enough to not notice, but they place completely different books at the same row index. If any code builds `book2idx` itself from `books_df` instead of loading the saved `book2idx_sbert.npy`, or indexes `books_df` positionally (`.iloc[i]`) using an index that came from `embeddings`/`book2idx`, results become silently wrong -- not an error, just incorrect books returned with plausible-looking scores.
+
+**Rules that must hold:**
+1. Always load `book2idx` from `models/book2idx_sbert.npy` at startup. Never rebuild it from `books_df["book_id"]`.
+2. Never use `books_df.iloc[i]` where `i` came from `argsort`/`book2idx`/`embeddings` indexing. Always look up by value: `books_df[books_df["book_id"] == book_id]`.
+3. Any array meant to be indexed in parallel with `embeddings` (e.g. per-book title/author/rating lookup arrays) must be built via `books_df.set_index("book_id").reindex(ordered_book_ids)`, where `ordered_book_ids` comes from `idx2book` -- never built directly from `books_df`'s own row order.
+
+This exact class of bug was found and fixed three times in one debugging session (commits `faedc62`–area, `7547ccf`, `6b84698`) -- each time producing plausible-looking but silently incorrect recommendations, not a crash. If recommendation quality ever looks subtly "off" after a refactor, check this first.
 
 ---
 
@@ -232,7 +259,13 @@ pg_dump -U bookrs -W -h 127.0.0.1 bookrs_db > bookrs_backup.sql
 psql -U bookrs -W -h 127.0.0.1 bookrs_db < bookrs_backup.sql
 ```
 
-Model artifacts are excluded from version control — regenerate with the data preparation scripts or restore from backup.
+> **Always verify a restored backup's row counts before trusting it:**
+> ```bash
+> psql -U bookrs -h 127.0.0.1 -d bookrs_db -c "SELECT 'books', COUNT(*) FROM books UNION ALL SELECT 'interactions', COUNT(*) FROM interactions;"
+> ```
+> Expect exactly `883,468` books and `33,402,870` interactions. A backup taken mid-pipeline (e.g. before entity resolution, or before interactions finished loading) will restore successfully with no errors but contain the wrong counts -- this has happened before and is easy to miss.
+
+Model artifacts (`embeddings.npy`, `book2idx_sbert.npy`, `als_user_factors.npy`, `als_item_factors.npy`) are excluded from version control. Back them up separately (they do not change once generated) -- regenerating them from scratch takes ~90 minutes.
 
 ---
 
