@@ -459,8 +459,12 @@ class BookRecommender:
         # Return using fast positional lookup
         results = []
         for i in filtered:
+            bid = self.idx2book[i]
+            row = self.books_df[self.books_df["book_id"] == bid]
+            if len(row) == 0:
+                continue
             results.append(self._book_to_dict(
-                self.books_df.iloc[i], float(scores[i]), "content"
+                row.iloc[0], float(scores[i]), "content"
             ))
         return results
 
@@ -571,9 +575,11 @@ class BookRecommender:
         results = []
         for bid, score in cached_items:
             if bid in self.book2idx:
-                i = self.book2idx[bid]
+                row = self.books_df[self.books_df["book_id"] == bid]
+                if len(row) == 0:
+                    continue
                 results.append(self._book_to_dict(
-                    self.books_df.iloc[i], score, "content"
+                    row.iloc[0], score, "content"
                 ))
         return results
 
