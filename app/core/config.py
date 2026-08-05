@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
 class Settings(BaseSettings):
     # App
     APP_NAME: str = "BookRS"
@@ -12,8 +14,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://bookrs:bookrs123@localhost:5432/bookrs_db"
 
     # Paths
-    DATA_DIR: str = "/home/singh/data"
-    MODELS_DIR: str = "/home/singh/projects/BookRS/models"
+    DATA_DIR: str = str(PROJECT_ROOT / "data")
+    MODELS_DIR: str = str(PROJECT_ROOT / "models")
     BOOKS_PARQUET: str = "bookrs_ucsd_books.parquet"
     INTERACTIONS_PARQUET: str = "bookrs_ucsd_interactions.parquet"
 

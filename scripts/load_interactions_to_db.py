@@ -3,7 +3,7 @@ import asyncio
 import pandas as pd
 from pathlib import Path
 import sys
-sys.path.insert(0, '/home/singh/projects/BookRS')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.database import AsyncSessionLocal, init_db
 from app.models.interaction import Interaction
