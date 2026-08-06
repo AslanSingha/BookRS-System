@@ -87,10 +87,23 @@ PostgreSQL (Port 5432)
 
 ## Installation
 
-### 1. Clone
+### 0. Prerequisite: BookRS-DataPrep
+
+The data preparation scripts below (Step 1) read from a parquet file produced by a **separate** repository, [BookRS-DataPrep](https://github.com/AslanSingha/BookRS-DataPrep). Clone and run it first:
 
 ```bash
-git clone https://github.com/AslanSingha/BookRS-System.git
+git clone git@github.com:AslanSingha/BookRS-DataPrep.git ~/projects/BookRS-DataPrep
+cd ~/projects/BookRS-DataPrep
+# Follow BookRS-DataPrep's own README to produce:
+#   outputs/bookrs_ucsd_books.parquet         (1,244,257 rows)
+#   outputs/bookrs_ucsd_interactions.parquet  (33,402,870 rows)
+# from the raw UCSD Book Graph dataset (goodreads_books.json.gz, goodreads_interactions.csv).
+```
+
+### 1. Clone BookRS-System
+
+```bash
+git clone git@github.com:AslanSingha/BookRS-System.git
 cd BookRS-System
 ```
 
@@ -101,6 +114,11 @@ python3.12 -m venv ~/bookrs-env
 source ~/bookrs-env/bin/activate
 pip install -r requirements.txt
 ```
+
+> GPU/CUDA support is included automatically -- no separate PyTorch install command is needed. Verify with:
+> ```bash
+> python3 -c "import torch; print(torch.cuda.is_available())"
+> ```
 
 ### 3. PostgreSQL setup
 
