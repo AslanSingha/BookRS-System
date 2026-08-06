@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '../services/api'
+import { useBookStore } from './books'
 
 export const useUserStore = defineStore('user', () => {
   const userId = ref(localStorage.getItem('bookrs_user_id') || '')
@@ -92,18 +93,19 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('bookrs_clicks')
     localStorage.removeItem('bookrs_last_query')
     localStorage.removeItem('bookrs_views')
-    // Clear book store cache
-    try {
-      const { useBookStore } = require('./books')
-      const bookStore = useBookStore()
-      bookStore.recommendations    = []
-      bookStore.becauseSearched    = []
-      bookStore.becauseRated       = []
-      bookStore.collaborativePicks = []
-      bookStore.genrePopular       = []
-      bookStore.trending           = []
-      bookStore.popular            = []
-    } catch (e) {}
+    // Clear book store cache.
+    // NOTE: previously used require('./books') here, which does not
+    // exist in the browser (Vite/ES modules) -- it silently threw and
+    // was swallowed by the try/catch, so this block never actually ran.
+    // useBookStore is now imported properly at the top of this file.
+    const bookStore = useBookStore()
+    bookStore.recommendations    = []
+    bookStore.becauseSearched    = []
+    bookStore.becauseRated       = []
+    bookStore.collaborativePicks = []
+    bookStore.genrePopular       = []
+    bookStore.trending           = []
+    bookStore.popular            = []
   }
 
   async function logAction(bookId, actionType, value = 0) {
