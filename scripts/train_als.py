@@ -47,7 +47,25 @@ DB_CONFIG = {
 K       = 128
 LAMBDA  = 0.1
 ITERS   = 10
-USE_GPU = True
+
+# GPU training via implicit's CUDA extension requires RMM, and as of
+# this writing implicit's published GPU wheels (both pip's rmm-cu13
+# and conda-forge's implicit-proc=gpu builds) are compiled against an
+# RMM device_buffer API that does not match ANY currently published
+# RMM release -- confirmed by testing all 5 available rmm-cu13
+# versions via pip AND the conda-forge GPU build, all failing with
+# the same 'undefined symbol' error. This is an upstream packaging
+# bug in the implicit project (github.com/benfred/implicit), not
+# something fixable from this project's side.
+#
+# CPU training is used by default: for this dataset size (26.4M
+# interactions, k=128) it completes in ~2 minutes on a 6-core CPU --
+# not a meaningful bottleneck -- and works on any machine, with or
+# without a GPU. Set FORCE_GPU_ALS=1 to attempt GPU training anyway
+# (will raise the ImportError above if the bug is still present
+# upstream).
+import os
+USE_GPU = os.environ.get('FORCE_GPU_ALS', '0') == '1'
 
 def load():
     log.info("Connecting to PostgreSQL...")

@@ -139,7 +139,7 @@ cd frontend && npm install && cd ..
 
 ## Data Preparation
 
-Run once before starting the system, **in this exact order**. Total time: ~90 minutes on GPU.
+Run once before starting the system, **in this exact order**. Total time: ~80-90 minutes (dominated by SBERT encoding on GPU; ALS training runs on CPU by default and takes ~2 minutes -- see note below).
 
 ```bash
 # Step 1 — Load raw books into PostgreSQL: 1,244,257 rows, pre-deduplication (~3 min)
@@ -154,11 +154,29 @@ python scripts/entity_resolution.py
 # Step 4 — Encode books with SBERT: embeddings.npy + book2idx_sbert.npy (~80 min)
 python scripts/encode_books.py
 
-# Step 5 — Train ALS model: als_user_factors.npy, als_item_factors.npy (~15 min)
+# Step 5 — Train ALS model: als_user_factors.npy, als_item_factors.npy (~2 min, CPU)
 python scripts/train_als.py
 ```
 
 > **Do not skip Step 3.** Steps 1 and 2 alone leave PostgreSQL with the raw, pre-deduplication catalogue (1,244,257 books). `encode_books.py` in Step 4 reads directly from PostgreSQL, in book_id order -- it must run after entity resolution, or `embeddings.npy` will be generated against the wrong book count and silently misalign with everything downstream. See **Critical: Index Ordering** below.
+
+---
+
+## ALS Training: CPU by Default (GPU Currently Broken Upstream)
+
+`scripts/train_als.py` runs on CPU by default. This is a deliberate choice, not a workaround avoided for convenience:
+
+GPU-accelerated ALS training via the `implicit` library requires RMM (RAPIDS Memory Manager). As of this writing, `implicit`'s published GPU builds -- both the pip wheel (`implicit==0.7.3` + `rmm-cu13`) and the conda-forge build (`implicit-proc=*=gpu`) -- are compiled against an RMM `device_buffer` constructor signature that does not exist in any currently published RMM release. This was confirmed by testing all 5 available `rmm-cu13` versions via pip, and separately via conda-forge's own GPU build -- every combination fails with the identical `undefined symbol` error, traced down to the exact C++ signature mismatch (`cccl_async_resource_ref<resource_ref<...>>` expected vs `any_resource<...>` provided). This is an upstream packaging bug in [benfred/implicit](https://github.com/benfred/implicit), not something fixable from this project's configuration.
+
+This turned out not to matter in practice: CPU training for this dataset (26.4M interactions after catalogue filtering, k=128) completes in **~2 minutes** on a 6-core CPU -- not the 15+ minutes originally assumed. It is not a meaningful bottleneck, and it works on any machine, with or without a GPU.
+
+> Note: GPU **is** used elsewhere in this project without issue -- SBERT encoding (`encode_books.py`) and query encoding at inference time both use PyTorch's CUDA support directly, which works correctly via a plain `pip install -r requirements.txt`. This limitation is specific to the `implicit` library's ALS training path only.
+
+To attempt GPU training anyway (e.g. once upstream fixes this):
+
+```bash
+FORCE_GPU_ALS=1 python scripts/train_als.py
+```
 
 ---
 
