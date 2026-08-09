@@ -168,14 +168,21 @@ python scripts/load_interactions_to_db.py
 # Step 3 — Entity resolution: deduplicates 1,244,257 to 883,468 books, -28.9% (~1 min)
 python scripts/entity_resolution.py
 
-# Step 4 — Encode books with SBERT: embeddings.npy + book2idx_sbert.npy (~80 min)
+# Step 4 — Export deduplicated books to parquet (~10 sec)
+# REQUIRED before starting the backend or running Step 5 below.
+# recommender.py reads books from this project-relative parquet file at
+# startup, NOT from PostgreSQL directly -- without this export it does not
+# exist yet and the backend fails with FileNotFoundError on startup.
+python scripts/export_books_parquet.py
+
+# Step 5 — Encode books with SBERT: embeddings.npy + book2idx_sbert.npy (~80 min)
 python scripts/encode_books.py
 
-# Step 5 — Train ALS model: als_user_factors.npy, als_item_factors.npy (~2 min, CPU)
+# Step 6 — Train ALS model: als_user_factors.npy, als_item_factors.npy (~2 min, CPU)
 python scripts/train_als.py
 ```
 
-> **Do not skip Step 3.** Steps 1 and 2 alone leave PostgreSQL with the raw, pre-deduplication catalogue (1,244,257 books). `encode_books.py` in Step 4 reads directly from PostgreSQL, in book_id order -- it must run after entity resolution, or `embeddings.npy` will be generated against the wrong book count and silently misalign with everything downstream. See **Critical: Index Ordering** below.
+> **Do not skip Step 3.** Steps 1 and 2 alone leave PostgreSQL with the raw, pre-deduplication catalogue (1,244,257 books). `encode_books.py` in Step 5 reads directly from PostgreSQL, in book_id order -- it must run after entity resolution, or `embeddings.npy` will be generated against the wrong book count and silently misalign with everything downstream. See **Critical: Index Ordering** below.
 
 ---
 
