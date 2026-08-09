@@ -129,7 +129,24 @@ sudo -u postgres psql -c "CREATE DATABASE bookrs_db OWNER bookrs;"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE bookrs_db TO bookrs;"
 ```
 
-### 4. Frontend
+### 4. Configure `.env`
+
+Create a `.env` file in the project root. This is **not optional** -- without it, the app falls back to the hardcoded default in `app/core/config.py` (`postgresql+asyncpg://bookrs:bookrs123@localhost:5432/bookrs_db`), which happens to work if you used the exact database name from Step 3 above, but will silently connect to the WRONG database (or fail) if you named it anything else -- e.g. for a separate test/staging database.
+
+```bash
+cat > .env << 'EOF'
+DATABASE_URL=postgresql+asyncpg://bookrs:bookrs123@localhost:5432/bookrs_db
+SECRET_KEY=bookrs-secret-key
+DEBUG=False
+EOF
+```
+
+> Change the database name in `DATABASE_URL` if you created a differently-named database in Step 3. Always verify which database you are actually connected to before running the data preparation scripts below -- especially `entity_resolution.py`, which performs a destructive `DELETE` -- with:
+> ```bash
+> python3 -c "from app.core.config import settings; print(settings.DATABASE_URL)"
+> ```
+
+### 5. Frontend
 
 ```bash
 cd frontend && npm install && cd ..
